@@ -409,15 +409,15 @@ async function saveFeedbackToSupabase(scope, sk) {
   } catch (e) { console.warn('save failed:', e); alert('Save failed: ' + e.message); }
 }
 
-// ============= TOP ACCOUNTS — split by stage =============
+// ============= TOP ACCOUNTS — split by stage (clickable) =============
 function renderTopOpps() {
   const split = DATA.top_by_stage || {};
-  renderStageTopTable('top-engaged-table', split.Engaged || [], 'No accounts at Engaged yet.');
-  renderStageTopTable('top-sdr-table',     split['SDR Contacted'] || [], 'No SDR-contacted accounts yet.');
-  renderStageTopTable('top-opp-table',     split.Opportunity || [], 'No Opportunity-stage accounts yet.');
+  renderStageTopTable('top-engaged-table', 'Engaged',       split.Engaged || [],         'No accounts at Engaged yet.');
+  renderStageTopTable('top-sdr-table',     'SDR Contacted', split['SDR Contacted'] || [], 'No SDR-contacted accounts yet.');
+  renderStageTopTable('top-opp-table',     'Opportunity',   split.Opportunity || [],     'No Opportunity-stage accounts yet.');
 }
 
-function renderStageTopTable(elId, rows, emptyMsg) {
+function renderStageTopTable(elId, stage, rows, emptyMsg) {
   const target = document.getElementById(elId);
   if (!target) return;
   if (rows.length === 0) {
@@ -426,7 +426,7 @@ function renderStageTopTable(elId, rows, emptyMsg) {
   }
   target.innerHTML = `<table class="account-table">
     <thead><tr><th>Account</th><th>Tier</th><th>Score</th><th>Committee</th><th>Last sig</th><th>Why now</th></tr></thead>
-    <tbody>${rows.map(o => `<tr>
+    <tbody>${rows.map(o => `<tr class="acct-row" data-domain="${escapeAttr(o.domain)}" data-stage="${escapeAttr(stage)}">
       <td><div class="acct-name">${escapeHtml(o.company_name)}</div><div class="acct-domain">${escapeHtml(o.domain)}</div></td>
       <td><span class="tier-tag ${escapeHtml((o.tier || '').replace(/[^A-Z0-9]/g,''))}">${escapeHtml(o.tier || '—')}</span></td>
       <td class="score-cell">${o.priority_score}</td>
@@ -434,6 +434,23 @@ function renderStageTopTable(elId, rows, emptyMsg) {
       <td class="mono small dim">${escapeHtml(o.top_signal_date || '—')}</td>
       <td class="why-cell" title="${escapeAttr(o.why_now)}">${escapeHtml(o.why_now || '—')}</td>
     </tr>`).join('')}</tbody></table>`;
+
+  // Wire clicks → open same drilldown the funnel-row uses
+  target.querySelectorAll('.acct-row').forEach(row => {
+    row.addEventListener('click', () => {
+      SELECTED_STAGE  = row.dataset.stage;
+      SELECTED_DOMAIN = row.dataset.domain;
+      PAGE = 0;
+      // mirror selectStage UI: highlight funnel row + render stage panel
+      document.querySelectorAll('.fb-row').forEach(r =>
+        r.classList.toggle('selected', r.dataset.stage === SELECTED_STAGE));
+      renderStagePanel();
+      setTimeout(() => {
+        const d = document.getElementById('account-detail');
+        if (d && !d.hidden) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    });
+  });
 }
 
 function renderAttribution(attr) {
