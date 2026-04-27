@@ -140,23 +140,34 @@ function renderWindowMeta() {
   }
 }
 
-// ============= KPIs =============
+// ============= KPIs (all window-aware) =============
 function renderKPIs() {
-  const k = DATA.kpis || {};
   const t = DATA.totals || {};
-  const movement = (DATA.movement || {})[SELECTED_WINDOW] || {};
+  const f = (DATA.funnel_by_window || {})[SELECTED_WINDOW] || {};
   const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
+
+  // window-aware sums
+  const totalActive  = Object.values(f).reduce((a, b) => a + b, 0);
+  const inMotion     = totalActive - (f.Cold || 0);
+  const engagedPlus  = (f.Engaged || 0) + (f['SDR Contacted'] || 0) +
+                       (f.Opportunity || 0) + (f.SQL || 0) + (f['Demo Done'] || 0);
+  const opportunity  = f.Opportunity || 0;
+  const meetings     = (f.SQL || 0) + (f['Demo Done'] || 0);
+  // Engaged → Opportunity conversion: of Engaged+ accounts, how many crossed into Opportunity+
+  const engToOppDenom = (f.Engaged || 0) + (f['SDR Contacted'] || 0) +
+                        (f.Opportunity || 0) + (f.SQL || 0) + (f['Demo Done'] || 0);
+  const engToOppNum   = (f.Opportunity || 0) + (f.SQL || 0) + (f['Demo Done'] || 0);
+  const engToOpp      = engToOppDenom > 0 ? (engToOppNum / engToOppDenom * 100).toFixed(1) : '0';
+  const engagedPct    = totalActive > 0 ? (engagedPlus / totalActive * 100).toFixed(1) : '0';
+
   const items = [
     kpi(fmt(t.active_target_accounts || 0), 'Active target (ICP-fit)'),
-    kpi(fmt(k.in_motion || 0), 'In motion (past Cold)'),
-    kpi(fmt(k.engaged_plus || 0) + ` <span class="accent">·${k.engaged_pct_of_tam || 0}%</span>`, 'Engaged+ accounts'),
-    kpi(fmt(k.sdr_actionable || 0), 'SDR-actionable'),
-    kpi(fmt(k.opportunities || 0), 'Opportunity'),
-    kpi(fmt(k.meetings_booked || 0) + ` <span class="accent">·${k.sdr_to_sql_pct || 0}%</span>`, 'Meetings (SQL+Demo)'),
-    SELECTED_WINDOW !== 'all_time'
-      ? kpi(fmt(movement.new_engaged_or_above || 0), `New Engaged+ (${wlabel})`)
-      : null,
-  ].filter(Boolean);
+    kpi(fmt(inMotion), `In motion (${wlabel})`),
+    kpi(fmt(engagedPlus) + ` <span class="accent">·${engagedPct}%</span>`, `Engaged+ (${wlabel})`),
+    kpi(fmt(opportunity), `In Opportunity (${wlabel})`),
+    kpi(fmt(meetings), `Meetings booked (${wlabel})`),
+    kpi(engToOpp + '%', `Engaged → Opportunity conversion`),
+  ];
   document.getElementById('kpi-strip').innerHTML = items.join('');
 }
 function kpi(v, l) {
