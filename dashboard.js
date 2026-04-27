@@ -175,7 +175,8 @@ function renderCampaignPanels() {
                           name.startsWith('Maajid') ||
                           name.startsWith('Mani') ||
                           name === 'Priority accounts' ||
-                          name === 'Must + Core'));
+                          name === 'Must + Core' ||
+                          name.startsWith('Mani')));
     const acctRows = showList
       ? p.accounts_list.map(a => `
           <tr class="acct-row${a.ae_engaged ? ' ae-engaged' : ''}" data-domain="${escapeHtml(a.domain)}">
