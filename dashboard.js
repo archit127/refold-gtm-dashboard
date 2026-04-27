@@ -216,6 +216,11 @@ function renderAccountTable() {
       SELECTED_DOMAIN = row.dataset.domain;
       renderAccountTable();
       renderAccountDetail();
+      // Scroll the detail panel into view (small delay for render)
+      setTimeout(() => {
+        const d = document.getElementById('account-detail');
+        if (d && !d.hidden) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
     });
   });
 }
