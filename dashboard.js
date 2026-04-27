@@ -93,6 +93,7 @@ function renderAll() {
   renderMovement();
   renderFunnel();
   renderTopOpps();
+  renderMeetings();
   renderStalled();
   renderCampaignPanels();
   renderSdrPanels();
@@ -150,6 +151,48 @@ function renderCampaignPanels() {
     </div>`;
   }).join('');
   grid.innerHTML = cards || '<div class="dim small">No campaign data yet.</div>';
+}
+
+// ============= MEETINGS BOOKED =============
+function renderMeetings() {
+  const wrap = document.getElementById('meetings-table');
+  if (!wrap) return;
+  const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
+  const lbl = document.getElementById('meetings-window-label');
+  if (lbl) lbl.textContent = `· ${wlabel}`;
+  const list = ((DATA.meetings_list_by_window || {})[SELECTED_WINDOW]) || [];
+  const count = (DATA.meetings_by_window || {})[SELECTED_WINDOW] || 0;
+  const meta = document.getElementById('meetings-meta');
+  if (meta) {
+    meta.textContent = count === 0
+      ? 'No meetings booked in this window yet.'
+      : `${count} meeting${count === 1 ? '' : 's'} booked${list.length < count ? ` · showing latest ${list.length}` : ''}`;
+  }
+  if (list.length === 0) {
+    wrap.innerHTML = '<div class="dim small">Try a wider window — e.g. last 30d or YTD — to see meetings booked.</div>';
+    return;
+  }
+  const rows = list.map(m => `
+    <tr class="acct-row" data-domain="${escapeHtml(m.domain)}">
+      <td>${escapeHtml(m.date)}</td>
+      <td>${escapeHtml(m.company_name)}</td>
+      <td>${escapeHtml(m.tier || '')}</td>
+      <td>${escapeHtml(m.stage || '')}</td>
+      <td>${escapeHtml(m.contact || '')}</td>
+      <td>${escapeHtml(m.title || '')}</td>
+    </tr>`).join('');
+  wrap.innerHTML = `<table class="account-table">
+    <thead><tr>
+      <th>Date</th><th>Account</th><th>Tier</th><th>Current stage</th><th>Contact</th><th>Title</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+  wrap.querySelectorAll('.acct-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const dom = row.dataset.domain;
+      if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
+    });
+  });
 }
 
 // ============= COLD OUTBOUND SENDER PANELS =============
@@ -260,7 +303,9 @@ function renderKPIs() {
   const engagedPlus  = (f.Engaged || 0) + (f['SDR Contacted'] || 0) +
                        (f.Opportunity || 0) + (f.SQL || 0) + (f['Demo Done'] || 0);
   const opportunity  = f.Opportunity || 0;
-  const meetings     = (f.SQL || 0) + (f['Demo Done'] || 0);
+  // Meetings booked = COUNT of meeting_booked signals in window (a flow),
+  // not stage-stock at SQL/Demo Done.
+  const meetings = (DATA.meetings_by_window || {})[SELECTED_WINDOW] || 0;
   // Engaged → Opportunity conversion: of Engaged+ accounts, how many crossed into Opportunity+
   const engToOppDenom = (f.Engaged || 0) + (f['SDR Contacted'] || 0) +
                         (f.Opportunity || 0) + (f.SQL || 0) + (f['Demo Done'] || 0);
