@@ -295,6 +295,16 @@ main {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 500;
 }
+.committee-cell { font-family: 'JetBrains Mono', monospace; }
+.committee-badge {
+  display: inline-block;
+  padding: 1px 8px; border-radius: 4px;
+  font-size: 11px; letter-spacing: 0.05em;
+  cursor: help;
+}
+.committee-badge.committee-1 { color: var(--ink-mute); }
+.committee-badge.committee-2 { color: var(--gold); background: oklch(0.28 0.060 75 / 0.18); }
+.committee-badge.committee-3 { color: var(--green); background: oklch(0.28 0.110 155 / 0.18); font-weight: 500; }
 .why-cell {
   max-width: 320px;
   overflow: hidden; text-overflow: ellipsis;

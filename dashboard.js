@@ -344,7 +344,7 @@ function renderAccountDetail() {
         <h3>${escapeHtml(a.company_name || a.domain)}</h3>
         <div class="dim small">${escapeHtml(a.domain)} · ${escapeHtml(a.tier || '')} · ${escapeHtml(a.industry || '')} · ${escapeHtml(a.country || '')}</div>
       </div>
-      <div class="ad-meta">${a.open_deals_amount > 0 ? '$' + fmt(a.open_deals_amount) + ' · ' : ''}score ${a.priority_score} · ${escapeHtml(SELECTED_STAGE)}</div>
+      <div class="ad-meta">${a.open_deals_amount > 0 ? '$' + fmt(a.open_deals_amount) + ' · ' : ''}score ${a.priority_score} · ${escapeHtml(SELECTED_STAGE)}${a.committee_score > 0 ? ` · committee ${committeeBadge(a.committee_score, a.committee_levels)}` : ''}</div>
     </div>
     ${a.why_now ? `<div class="why-matters" style="border:none;padding:0;margin-bottom:14px;"><strong style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;">Why now:</strong> ${escapeHtml(a.why_now)}</div>` : ''}
     ${a.outreach_angle ? `<div class="why-matters" style="border:none;padding:0;margin-bottom:14px;"><strong style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;">Outreach angle:</strong> ${escapeHtml(a.outreach_angle)}</div>` : ''}
@@ -423,14 +423,25 @@ function renderStageTopTable(elId, rows, emptyMsg) {
     return;
   }
   target.innerHTML = `<table class="account-table">
-    <thead><tr><th>Account</th><th>Tier</th><th>Score</th><th>Last sig</th><th>Why now</th></tr></thead>
+    <thead><tr><th>Account</th><th>Tier</th><th>Score</th><th>Committee</th><th>Last sig</th><th>Why now</th></tr></thead>
     <tbody>${rows.map(o => `<tr>
       <td><div class="acct-name">${escapeHtml(o.company_name)}</div><div class="acct-domain">${escapeHtml(o.domain)}</div></td>
       <td><span class="tier-tag ${escapeHtml((o.tier || '').replace(/[^A-Z0-9]/g,''))}">${escapeHtml(o.tier || '—')}</span></td>
       <td class="score-cell">${o.priority_score}</td>
+      <td class="committee-cell" title="${escapeAttr((o.committee_levels || []).join(' · '))}">${committeeBadge(o.committee_score || 0, o.committee_levels)}</td>
       <td class="mono small dim">${escapeHtml(o.top_signal_date || '—')}</td>
       <td class="why-cell" title="${escapeAttr(o.why_now)}">${escapeHtml(o.why_now || '—')}</td>
     </tr>`).join('')}</tbody></table>`;
+}
+
+function committeeBadge(score, levels) {
+  if (!score) return '<span class="dim">—</span>';
+  let cls = 'committee-1';
+  if (score >= 3) cls = 'committee-3';
+  else if (score >= 2) cls = 'committee-2';
+  const dots = '●'.repeat(Math.min(score, 4));
+  const tooltip = (levels || []).join(' · ');
+  return `<span class="committee-badge ${cls}" title="${escapeAttr(tooltip)}">${dots} <span class="dim small">${score}</span></span>`;
 }
 
 // ============= STALLED =============
