@@ -296,6 +296,55 @@ main {
   font-weight: 500;
 }
 .committee-cell { font-family: 'JetBrains Mono', monospace; }
+
+/* ATTRIBUTION PANEL */
+.attribution-panel {
+  background: var(--bg-elev);
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid var(--gold-soft);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.attr-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 12px;
+}
+.attr-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--gold);
+}
+.attr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+.attr-col h5 {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-dim); margin-bottom: 8px;
+  font-weight: 500;
+}
+.attr-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 36px;
+  align-items: center; gap: 6px;
+  padding: 2px 0;
+  font-size: 11.5px;
+}
+.attr-label {
+  color: var(--ink); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.attr-bar {
+  background: oklch(0.20 0.018 250);
+  height: 6px; border-radius: 2px; overflow: hidden;
+}
+.attr-fill { height: 100%; background: var(--gold-soft); display: block; }
+.attr-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--ink-mute); text-align: right;
+}
 .committee-badge {
   display: inline-block;
   padding: 1px 8px; border-radius: 4px;

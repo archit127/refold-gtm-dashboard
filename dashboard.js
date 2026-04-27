@@ -349,6 +349,8 @@ function renderAccountDetail() {
     ${a.why_now ? `<div class="why-matters" style="border:none;padding:0;margin-bottom:14px;"><strong style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;">Why now:</strong> ${escapeHtml(a.why_now)}</div>` : ''}
     ${a.outreach_angle ? `<div class="why-matters" style="border:none;padding:0;margin-bottom:14px;"><strong style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;">Outreach angle:</strong> ${escapeHtml(a.outreach_angle)}</div>` : ''}
 
+    ${renderAttribution(a.attribution)}
+
     <div class="ad-grid">
       <div class="ad-section"><h4>Contacts (${(a.contacts || []).length})</h4><ul class="contacts-list">${contactsHtml}</ul></div>
       <div class="ad-section"><h4>Recent signals (${(a.recent_signals || []).length})</h4><ul class="signals-list">${sigsHtml}</ul></div>
@@ -432,6 +434,50 @@ function renderStageTopTable(elId, rows, emptyMsg) {
       <td class="mono small dim">${escapeHtml(o.top_signal_date || '—')}</td>
       <td class="why-cell" title="${escapeAttr(o.why_now)}">${escapeHtml(o.why_now || '—')}</td>
     </tr>`).join('')}</tbody></table>`;
+}
+
+function renderAttribution(attr) {
+  if (!attr || !attr.total_signals_60d) return '';
+  const total = attr.total_signals_60d;
+  function bars(obj, max) {
+    const entries = Object.entries(obj || {}).slice(0, max || 5);
+    if (entries.length === 0) return '<span class="dim small">—</span>';
+    const top = entries[0][1];
+    return entries.map(([k, n]) => {
+      const w = top > 0 ? (n / top * 100).toFixed(0) : 0;
+      return `<div class="attr-row">
+        <span class="attr-label">${escapeHtml(k)}</span>
+        <span class="attr-bar"><span class="attr-fill" style="width:${w}%"></span></span>
+        <span class="attr-count">${fmt(n)}</span>
+      </div>`;
+    }).join('');
+  }
+  return `
+    <div class="attribution-panel">
+      <div class="attr-header">
+        <span class="attr-title">Why this account is here</span>
+        <span class="dim small">${fmt(total)} signals · last 60d</span>
+      </div>
+      <div class="attr-grid">
+        <div class="attr-col">
+          <h5>By source</h5>
+          ${bars(attr.by_source, 6)}
+        </div>
+        <div class="attr-col">
+          <h5>By signal type</h5>
+          ${bars(attr.by_type, 6)}
+        </div>
+        ${Object.keys(attr.by_campaign || {}).length ? `<div class="attr-col">
+          <h5>By campaign</h5>
+          ${bars(attr.by_campaign, 6)}
+        </div>` : ''}
+        ${Object.keys(attr.by_sdr || {}).length ? `<div class="attr-col">
+          <h5>By SDR / owner</h5>
+          ${bars(attr.by_sdr, 6)}
+        </div>` : ''}
+      </div>
+    </div>
+  `;
 }
 
 function committeeBadge(score, levels) {
