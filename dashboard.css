@@ -268,9 +268,33 @@ main {
   padding: 10px 10px;
   border-bottom: 1px solid var(--line-soft);
 }
-.account-table tr.acct-row { cursor: pointer; }
-.account-table tr.acct-row:hover { background: oklch(0.20 0.018 250); }
-.account-table tr.acct-row.selected { background: var(--selected); }
+/* clickable account rows — explicit pointer + visible hover */
+.account-table tr.acct-row,
+table.account-table tbody tr.acct-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.account-table tr.acct-row:hover {
+  background: oklch(0.24 0.030 75 / 0.4);
+  outline: 1px solid var(--gold-soft);
+  outline-offset: -1px;
+}
+.account-table tr.acct-row.selected {
+  background: var(--selected);
+  outline: 1px solid var(--gold-soft);
+  outline-offset: -1px;
+}
+.account-table tr.acct-row td:first-child {
+  position: relative;
+}
+.account-table tr.acct-row:hover td:first-child::before {
+  content: "→";
+  position: absolute;
+  left: -2px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--gold);
+  font-size: 14px;
+}
 .account-table .acct-name {
   font-family: 'Bricolage Grotesque', serif;
   font-weight: 500;
