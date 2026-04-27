@@ -529,6 +529,24 @@ table.account-table tbody tr.acct-row {
   border-left-color: var(--line);
   opacity: 0.6;
 }
+.ae-shield-banner {
+  background: oklch(28% 0.06 25 / 0.55);
+  border: 1px solid oklch(45% 0.10 25 / 0.6);
+  border-left: 3px solid oklch(60% 0.18 25);
+  color: oklch(88% 0.05 25);
+  padding: 10px 12px; border-radius: 4px;
+  font-size: 13px; line-height: 1.5;
+}
+.ae-shield-banner b { color: oklch(94% 0.04 25); }
+.ae-shield-list {
+  margin: 6px 0 0; padding-left: 18px; font-size: 12px;
+}
+.ae-shield-list li { margin: 2px 0; }
+tr.acct-row.ae-engaged {
+  background: oklch(22% 0.04 25 / 0.35);
+  opacity: 0.75;
+}
+tr.acct-row.ae-engaged:hover { opacity: 1; }
 .cc-name {
   font-family: 'Bricolage Grotesque', serif;
   font-weight: 500; font-size: 16px;

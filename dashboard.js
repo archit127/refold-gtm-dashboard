@@ -152,8 +152,42 @@ function renderCampaignPanels() {
       .map(([t, n]) => `<span class="cc-type-pill">${escapeHtml(t)} <span class="dim">${fmt(n)}</span></span>`)
       .join('');
 
+    // AE-shield conflict banner
+    const conflicts = p.ae_conflicts || [];
+    const conflictBanner = conflicts.length > 0
+      ? `<div class="ae-shield-banner">
+          🛑 <b>${conflicts.length} of ${accts}</b> AE-engaged — SDRs should skip:
+          <ul class="ae-shield-list">
+            ${conflicts.slice(0, 5).map(c =>
+              `<li><b>${escapeHtml(c.company)}</b> · <span class="dim">${escapeHtml(c.detail)}</span></li>`
+            ).join('')}
+            ${conflicts.length > 5 ? `<li class="dim">+${conflicts.length - 5} more</li>` : ''}
+          </ul>
+        </div>`
+      : '';
+
+    // Account list (top by priority, with AE flag) — only show for SDR-focus panels
+    const showList = (p.accounts_list && p.accounts_list.length > 0
+                      && (name.startsWith('Tejas') || name.startsWith('Maajid') || name.startsWith('Mani')));
+    const acctRows = showList
+      ? p.accounts_list.map(a => `
+          <tr class="acct-row${a.ae_engaged ? ' ae-engaged' : ''}" data-domain="${escapeHtml(a.domain)}">
+            <td>${a.ae_engaged ? '🛑 ' : ''}${escapeHtml(a.company)}</td>
+            <td>${escapeHtml(a.tier || '')}</td>
+            <td>${escapeHtml(a.stage || '')}</td>
+            <td class="num">${fmt(a.priority_score)}</td>
+            <td class="dim small">${escapeHtml(a.ae_engaged ? a.ae_evidence : (a.recent_signals || ''))}</td>
+          </tr>`).join('')
+      : '';
+    const acctTable = acctRows
+      ? `<table class="account-table sdr-mini-table"><thead><tr>
+          <th>Account</th><th>Tier</th><th>Stage</th><th class="num">Score</th><th>Signal / AE flag</th>
+        </tr></thead><tbody>${acctRows}</tbody></table>`
+      : '';
+
     return `<div class="campaign-card">
       <div class="cc-name">${escapeHtml(name)}</div>
+      ${conflictBanner}
       <div class="cc-stats">
         <div><span class="cc-big">${fmt(accts)}</span><span class="cc-lbl">accounts</span></div>
         <div><span class="cc-big">${fmt(p.unique_contacts || 0)}</span><span class="cc-lbl">contacts</span></div>
@@ -162,8 +196,18 @@ function renderCampaignPanels() {
       </div>
       <div class="cc-stages">${stageBars}</div>
       ${topTypes ? `<div class="cc-types">${topTypes}</div>` : ''}
+      ${acctTable}
     </div>`;
   }).join('');
+  // Wire row clicks
+  setTimeout(() => {
+    grid.querySelectorAll('.campaign-card .acct-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const dom = row.dataset.domain;
+        if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
+      });
+    });
+  }, 0);
   grid.innerHTML = cards || '<div class="dim small">No campaign data yet.</div>';
 }
 
