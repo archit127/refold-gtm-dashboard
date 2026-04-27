@@ -32,12 +32,17 @@ function getAuthor() {
 
 const STAGE_COLOR_CLASS = {
   'Cold': 'st-Cold', 'Reached': 'st-Reached', 'Aware': 'st-Aware',
-  'Engaged': 'st-Engaged', 'SDR Contacted': 'st-SDR', 'SQL': 'st-SQL',
+  'Engaged': 'st-Engaged', 'SDR Contacted': 'st-SDR',
+  'Opportunity': 'st-Opportunity',
+  'SQL': 'st-SQL',
   'Demo Done': 'st-DemoDone', 'AE Introduced': 'st-AEIntroduced',
   'Proposal': 'st-Proposal', 'Won': 'st-Won', 'Lost': 'st-Lost',
 };
 
-const QUICK_TAGS = ['✓ good fit', '✗ wrong account', '✓ contacted', '✗ wrong contact', '⏳ waiting on data', '★ high priority'];
+const QUICK_TAGS = [
+  '✓ good fit', '✗ not a real opp', '✓ contacted',
+  '✗ wrong contact', '⏳ waiting on data', '★ high priority',
+];
 
 let DATA = null;
 let SELECTED_STAGE = null;

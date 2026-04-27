@@ -19,8 +19,9 @@
   --st-reached: oklch(0.62 0.080 240);
   --st-aware:   oklch(0.68 0.110 200);
   --st-engaged: oklch(0.78 0.130 75);
-  --st-sdr:     oklch(0.70 0.130 100);
-  --st-sql:     oklch(0.70 0.130 145);
+  --st-sdr:         oklch(0.70 0.130 100);
+  --st-opportunity: oklch(0.74 0.140 60);
+  --st-sql:         oklch(0.70 0.130 145);
   --st-demo:    oklch(0.72 0.110 160);
   --st-ae:      oklch(0.70 0.110 175);
   --st-prop:    oklch(0.72 0.130 35);
@@ -157,6 +158,7 @@ main {
 .fb-bar-fill.st-Aware   { background: var(--st-aware); }
 .fb-bar-fill.st-Engaged { background: var(--st-engaged); }
 .fb-bar-fill.st-SDR     { background: var(--st-sdr); }
+.fb-bar-fill.st-Opportunity { background: var(--st-opportunity); }
 .fb-bar-fill.st-SQL     { background: var(--st-sql); }
 .fb-bar-fill.st-DemoDone { background: var(--st-demo); }
 .fb-bar-fill.st-AEIntroduced { background: var(--st-ae); }
