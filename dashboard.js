@@ -47,8 +47,16 @@ const QUICK_TAGS = [
 let DATA = null;
 let SELECTED_STAGE = null;
 let SELECTED_DOMAIN = null;
+let SELECTED_WINDOW = 'this_month';   // user-changeable window
 let PAGE = 0;
 const PAGE_SIZE = 30;
+const WINDOW_LABELS = {
+  'this_week':    'this week',
+  'this_month':   'this month',
+  'this_quarter': 'this quarter',
+  'ytd':          'YTD',
+  'last_30d':     'last 30d',
+};
 
 // ============= INIT =============
 let FEEDBACK_BY_SCOPE = {}; // {scope:scope_key: [{...}]} loaded once at startup
@@ -82,14 +90,41 @@ async function load() {
   DATA = await res.json();
   // ensure identity exists
   getAuthor();
+  // restore last-selected window
+  SELECTED_WINDOW = localStorage.getItem('dashboard:window') || 'this_month';
   document.getElementById('generated-at').textContent =
     'Updated ' + formatTime(DATA.generated_at);
+  wireWindowPills();
   renderKPIs();
   renderFunnel();
   renderAxes();
   renderWeeklyChart();
   renderWindows();
   renderNotes();
+}
+
+function wireWindowPills() {
+  document.querySelectorAll('.wpill').forEach(p => {
+    p.classList.toggle('active', p.dataset.w === SELECTED_WINDOW);
+    p.addEventListener('click', () => {
+      SELECTED_WINDOW = p.dataset.w;
+      localStorage.setItem('dashboard:window', SELECTED_WINDOW);
+      document.querySelectorAll('.wpill').forEach(q =>
+        q.classList.toggle('active', q.dataset.w === SELECTED_WINDOW));
+      renderKPIs();
+      renderAxes();
+      renderWindowMeta();
+    });
+  });
+  renderWindowMeta();
+}
+
+function renderWindowMeta() {
+  const wk = (DATA.axes_by_window || {})[SELECTED_WINDOW];
+  const meta = document.getElementById('window-meta');
+  if (!wk) { meta.textContent = ''; return; }
+  meta.textContent =
+    `${fmt(wk.total_signals)} signals · ${fmt(wk.unique_accounts)} unique accounts · since ${wk.window_start}`;
 }
 
 document.getElementById('refresh-btn').addEventListener('click', load);
@@ -111,14 +146,18 @@ document.addEventListener('DOMContentLoaded', () => {
 function renderKPIs() {
   const t = DATA.totals;
   const f = DATA.funnel_active_target;
+  const wk = (DATA.axes_by_window || {})[SELECTED_WINDOW] || {};
   const engagedPct = ((f.Engaged || 0) / Math.max(1, t.active_target_accounts) * 100).toFixed(1);
+  const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
   const html = [
     kpi(fmt(t.tam_accounts), 'TAM accounts'),
     kpi(fmt(t.active_target_accounts), 'Active target (ICP-fit)'),
-    kpi(fmt(t.signals_30d), 'Signals (30d)'),
-    kpi(fmt(f.Engaged || 0) + ` <span class="accent">·${engagedPct}%</span>`, 'Engaged accounts'),
-    kpi(fmt((f.SQL || 0) + (f['Demo Done'] || 0)), 'Meeting+ booked'),
-    kpi(fmt((f['AE Introduced'] || 0) + (f.Proposal || 0)), 'Active opps'),
+    kpi(fmt(wk.total_signals || 0), `Signals (${wlabel})`),
+    kpi(fmt(wk.unique_accounts || 0), `Unique accounts (${wlabel})`),
+    kpi(fmt(f.Engaged || 0) + ` <span class="accent">·${engagedPct}%</span>`, 'Engaged accounts (now)'),
+    kpi(fmt((f.SQL || 0) + (f['Demo Done'] || 0)), 'Meeting+ booked (now)'),
+    kpi(fmt((f.Opportunity || 0)), 'Opportunity (now)'),
+    kpi(fmt((f['AE Introduced'] || 0) + (f.Proposal || 0)), 'Active opps (now)'),
   ].join('');
   document.getElementById('kpi-strip').innerHTML = html;
 }
@@ -368,8 +407,14 @@ function renderAxes() {
     { key: 'by_campaign', label: 'By campaign' },
     { key: 'by_sdr',      label: 'By SDR' },
   ];
+  // Use windowed axes if available, else legacy axes (last_30d default)
+  const windowed = (DATA.axes_by_window || {})[SELECTED_WINDOW];
+  const axesData = windowed || DATA.axes;
+  const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
+  const axesLabel = document.getElementById('axes-window-label');
+  if (axesLabel) axesLabel.textContent = `Activity ${wlabel}`;
   grid.innerHTML = axes.map(({key, label}) => {
-    const data = DATA.axes[key] || {};
+    const data = axesData[key] || {};
     const totals = Object.entries(data)
       .map(([k, stages]) => [k, Object.values(stages).reduce((a, b) => a + b, 0)])
       .sort((a, b) => b[1] - a[1])

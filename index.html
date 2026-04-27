@@ -23,6 +23,19 @@
 
 <main>
 
+  <!-- Window selector -->
+  <section class="window-selector">
+    <span class="dim small">Activity window:</span>
+    <div class="window-pills" id="window-pills">
+      <button class="wpill" data-w="this_week">This week</button>
+      <button class="wpill" data-w="this_month">This month</button>
+      <button class="wpill" data-w="this_quarter">This quarter</button>
+      <button class="wpill" data-w="ytd">YTD</button>
+      <button class="wpill" data-w="last_30d">Last 30d</button>
+    </div>
+    <span class="dim small" id="window-meta"></span>
+  </section>
+
   <!-- KPI strip -->
   <section class="kpi-strip" id="kpi-strip"></section>
 
@@ -71,7 +84,10 @@
 
   <!-- AXES -->
   <section class="card">
-    <div class="card-head"><h2>By source · channel · campaign · SDR</h2></div>
+    <div class="card-head">
+      <h2>By source · channel · campaign · SDR</h2>
+      <div class="dim small" id="axes-window-label"></div>
+    </div>
     <div class="axes-grid" id="axes-grid"></div>
   </section>
 
