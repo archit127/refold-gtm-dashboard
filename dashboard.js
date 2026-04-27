@@ -42,10 +42,24 @@ const QUICK_TAGS = [
 ];
 
 const WINDOW_LABELS = {
-  'this_week': 'this week', 'this_month': 'this month',
-  'this_quarter': 'this quarter', 'ytd': 'YTD',
-  'last_30d': 'last 30d', 'all_time': 'all-time',
+  'this_week': 'this week', 'last_week': 'last week',
+  'last_14d': 'last 14d',  'last_30d': 'last 30d',
+  'this_month': 'this month', 'this_quarter': 'this quarter',
+  'ytd': 'YTD', 'all_time': 'all-time',
 };
+function fmtRange(start, end) {
+  // Formats 'YYYY-MM-DD' into 'MMM D'
+  const f = s => {
+    if (!s) return null;
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(Date.UTC(y, m-1, d)).toLocaleDateString('en-US',
+      { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  };
+  const s = f(start);
+  const e = end ? f(end) : (DATA && DATA.today ? f(DATA.today) : 'today');
+  if (!s) return 'all-time';
+  return `${s} – ${e}`;
+}
 
 let DATA = null;
 let SELECTED_STAGE = null;
@@ -283,11 +297,12 @@ function renderWindowMeta() {
   if (!meta) return;
   const f = DATA.funnel_by_window?.[SELECTED_WINDOW] || {};
   const totalActive = Object.values(f).reduce((a,b) => a+b, 0);
-  const wstart = (DATA.window_starts || {})[SELECTED_WINDOW];
+  const bounds = (DATA.window_bounds || {})[SELECTED_WINDOW] || {};
+  const range = fmtRange(bounds.start, bounds.end);
   if (SELECTED_WINDOW === 'all_time') {
     meta.textContent = `${fmt(totalActive)} active-target accounts · all-time snapshot`;
   } else {
-    meta.textContent = `${fmt(totalActive)} accounts active in window · since ${wstart || '?'}`;
+    meta.textContent = `${range} · ${fmt(totalActive)} accounts active in window`;
   }
 }
 

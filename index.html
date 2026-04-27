@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="dashboard.css?v=14">
+<link rel="stylesheet" href="dashboard.css?v=15">
 </head>
 <body>
 
@@ -28,10 +28,12 @@
     <span class="dim small">Time window:</span>
     <div class="window-pills" id="window-pills">
       <button class="wpill" data-w="this_week">This week</button>
+      <button class="wpill" data-w="last_week">Last week</button>
+      <button class="wpill" data-w="last_14d">Last 14d</button>
+      <button class="wpill" data-w="last_30d">Last 30d</button>
       <button class="wpill" data-w="this_month">This month</button>
       <button class="wpill" data-w="this_quarter">This quarter</button>
       <button class="wpill" data-w="ytd">YTD</button>
-      <button class="wpill" data-w="last_30d">Last 30d</button>
       <button class="wpill" data-w="all_time">All-time</button>
     </div>
     <span class="dim small" id="window-meta"></span>
@@ -169,6 +171,6 @@
 
 </main>
 
-<script src="dashboard.js?v=14"></script>
+<script src="dashboard.js?v=15"></script>
 </body>
 </html>
