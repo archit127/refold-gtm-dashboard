@@ -318,7 +318,7 @@ function renderKPIs() {
     kpi(fmt(inMotion), `In motion (${wlabel})`),
     kpi(fmt(engagedPlus) + ` <span class="accent">·${engagedPct}%</span>`, `Engaged+ (${wlabel})`),
     kpi(fmt(opportunity), `In Opportunity (${wlabel})`),
-    kpi(fmt(meetings), `Meetings booked (${wlabel})`),
+    kpi(fmt(meetings), `SDR meetings booked (${wlabel})`),
     kpi(engToOpp + '%', `Engaged → Opportunity conversion`),
   ];
   document.getElementById('kpi-strip').innerHTML = items.join('');
