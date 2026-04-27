@@ -1,6 +1,4 @@
-/* Refold AI GTM Dashboard — vanilla JS
-   Persistent feedback writes to Supabase via PostgREST.
-   Anon key is intentionally public (RLS-protected). */
+/* Refold AI GTM Pipeline Dashboard — vanilla JS, business-grade view */
 
 const SUPABASE_URL  = 'https://ezgzvebkainfblczysmb.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Z3p2ZWJrYWluZmJsY3p5c21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxOTg3MjUsImV4cCI6MjA5Mjc3NDcyNX0.-sqZ29HDBQ37yN7Xspy1hc2aQG9D0StmODQTcV9IxCQ';
@@ -19,24 +17,23 @@ async function sbRequest(path, opts = {}) {
   return res.json();
 }
 
-// ============= IDENTITY =============
 function getAuthor() {
-  let author = localStorage.getItem('dashboard:author');
-  if (!author) {
-    author = (prompt('Who are you? (Tejas / Maajid / Mani / Archit / Jugal / Rish / Tanmay)\nThis name is attached to your notes so the team knows who said what.') || 'anonymous').trim();
-    if (!author) author = 'anonymous';
-    localStorage.setItem('dashboard:author', author);
+  let a = localStorage.getItem('dashboard:author');
+  if (!a) {
+    a = (prompt('Who are you? (Tejas / Maajid / Mani / Archit / Jugal / Rish / Tanmay)\nName attached to your notes so the team knows who said what.') || 'anonymous').trim();
+    if (!a) a = 'anonymous';
+    localStorage.setItem('dashboard:author', a);
   }
-  return author;
+  return a;
 }
 
-const STAGE_COLOR_CLASS = {
+const STAGE_CLASS = {
   'Cold': 'st-Cold', 'Reached': 'st-Reached', 'Aware': 'st-Aware',
   'Engaged': 'st-Engaged', 'SDR Contacted': 'st-SDR',
   'Opportunity': 'st-Opportunity',
-  'SQL': 'st-SQL',
-  'Demo Done': 'st-DemoDone', 'AE Introduced': 'st-AEIntroduced',
-  'Proposal': 'st-Proposal', 'Won': 'st-Won', 'Lost': 'st-Lost',
+  'SQL': 'st-SQL', 'Demo Done': 'st-DemoDone',
+  'AE Introduced': 'st-AEIntroduced', 'Proposal': 'st-Proposal',
+  'Won': 'st-Won', 'Lost': 'st-Lost',
 };
 
 const QUICK_TAGS = [
@@ -44,22 +41,19 @@ const QUICK_TAGS = [
   '✗ wrong contact', '⏳ waiting on data', '★ high priority',
 ];
 
+const WINDOW_LABELS = {
+  'this_week': 'this week', 'this_month': 'this month',
+  'this_quarter': 'this quarter', 'ytd': 'YTD',
+  'last_30d': 'last 30d', 'all_time': 'all-time',
+};
+
 let DATA = null;
 let SELECTED_STAGE = null;
 let SELECTED_DOMAIN = null;
-let SELECTED_WINDOW = 'this_month';   // user-changeable window
+let SELECTED_WINDOW = 'all_time';
 let PAGE = 0;
 const PAGE_SIZE = 30;
-const WINDOW_LABELS = {
-  'this_week':    'this week',
-  'this_month':   'this month',
-  'this_quarter': 'this quarter',
-  'ytd':          'YTD',
-  'last_30d':     'last 30d',
-};
-
-// ============= INIT =============
-let FEEDBACK_BY_SCOPE = {}; // {scope:scope_key: [{...}]} loaded once at startup
+let FEEDBACK_BY_SCOPE = {};
 
 async function loadFeedback() {
   try {
@@ -76,32 +70,48 @@ async function loadFeedback() {
 }
 
 async function load() {
-  // cache-bust to always pull latest dashboard.json
-  const [res, _] = await Promise.all([
+  const [res] = await Promise.all([
     fetch('dashboard.json?_=' + Date.now()),
     loadFeedback(),
   ]);
   if (!res.ok) {
     document.querySelector('main').innerHTML =
-      '<div class="card"><h2 style="color:var(--red)">Could not load dashboard.json</h2>' +
-      '<p class="dim">Run <code>routine_dashboard_data</code> first.</p></div>';
+      '<div class="card"><h2 style="color:var(--red)">Could not load dashboard.json</h2></div>';
     return;
   }
   DATA = await res.json();
-  // ensure identity exists
   getAuthor();
-  // restore last-selected window
-  SELECTED_WINDOW = localStorage.getItem('dashboard:window') || 'this_month';
+  SELECTED_WINDOW = localStorage.getItem('dashboard:window') || 'all_time';
   document.getElementById('generated-at').textContent =
     'Updated ' + formatTime(DATA.generated_at);
   wireWindowPills();
-  renderKPIs();
-  renderFunnel();
-  renderAxes();
-  renderWeeklyChart();
-  renderWindows();
-  renderNotes();
+  renderAll();
 }
+
+function renderAll() {
+  renderKPIs();
+  renderMovement();
+  renderFunnel();
+  renderTopOpps();
+  renderStalled();
+  renderByAE();
+  renderBySrcCamp();
+  renderNotes();
+  renderStagePanel();
+  renderWindowMeta();
+}
+
+document.getElementById('refresh-btn').addEventListener('click', load);
+document.getElementById('author-pill').addEventListener('click', () => {
+  const cur = localStorage.getItem('dashboard:author') || '';
+  const next = (prompt('Who are you?', cur) || '').trim();
+  if (next) { localStorage.setItem('dashboard:author', next); location.reload(); }
+});
+document.addEventListener('DOMContentLoaded', () => {
+  const a = getAuthor();
+  document.getElementById('author-pill').textContent = '◉ ' + a;
+  load();
+});
 
 function wireWindowPills() {
   document.querySelectorAll('.wpill').forEach(p => {
@@ -111,83 +121,115 @@ function wireWindowPills() {
       localStorage.setItem('dashboard:window', SELECTED_WINDOW);
       document.querySelectorAll('.wpill').forEach(q =>
         q.classList.toggle('active', q.dataset.w === SELECTED_WINDOW));
-      renderKPIs();
-      renderAxes();
-      renderWindowMeta();
+      // Reset selected stage so user sees the new window's funnel cleanly
+      PAGE = 0;
+      renderAll();
     });
   });
-  renderWindowMeta();
 }
 
 function renderWindowMeta() {
-  const wk = (DATA.axes_by_window || {})[SELECTED_WINDOW];
   const meta = document.getElementById('window-meta');
-  if (!wk) { meta.textContent = ''; return; }
-  meta.textContent =
-    `${fmt(wk.total_signals)} signals · ${fmt(wk.unique_accounts)} unique accounts · since ${wk.window_start}`;
-}
-
-document.getElementById('refresh-btn').addEventListener('click', load);
-document.getElementById('author-pill').addEventListener('click', () => {
-  const cur = localStorage.getItem('dashboard:author') || '';
-  const next = (prompt('Who are you? (Tejas / Maajid / Mani / Archit / Jugal / Rish / Tanmay)', cur) || '').trim();
-  if (next) {
-    localStorage.setItem('dashboard:author', next);
-    location.reload();
+  if (!meta) return;
+  const f = DATA.funnel_by_window?.[SELECTED_WINDOW] || {};
+  const totalActive = Object.values(f).reduce((a,b) => a+b, 0);
+  const wstart = (DATA.window_starts || {})[SELECTED_WINDOW];
+  if (SELECTED_WINDOW === 'all_time') {
+    meta.textContent = `${fmt(totalActive)} active-target accounts · all-time snapshot`;
+  } else {
+    meta.textContent = `${fmt(totalActive)} accounts active in window · since ${wstart || '?'}`;
   }
-});
-document.addEventListener('DOMContentLoaded', () => {
-  const a = getAuthor();
-  document.getElementById('author-pill').textContent = '◉ ' + a;
-  load();
-});
+}
 
 // ============= KPIs =============
 function renderKPIs() {
-  const t = DATA.totals;
-  const f = DATA.funnel_active_target;
-  const wk = (DATA.axes_by_window || {})[SELECTED_WINDOW] || {};
-  const engagedPct = ((f.Engaged || 0) / Math.max(1, t.active_target_accounts) * 100).toFixed(1);
+  const k = DATA.kpis || {};
+  const movement = (DATA.movement || {})[SELECTED_WINDOW] || {};
   const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
-  const html = [
-    kpi(fmt(t.tam_accounts), 'TAM accounts'),
-    kpi(fmt(t.active_target_accounts), 'Active target (ICP-fit)'),
-    kpi(fmt(wk.total_signals || 0), `Signals (${wlabel})`),
-    kpi(fmt(wk.unique_accounts || 0), `Unique accounts (${wlabel})`),
-    kpi(fmt(f.Engaged || 0) + ` <span class="accent">·${engagedPct}%</span>`, 'Engaged accounts (now)'),
-    kpi(fmt((f.SQL || 0) + (f['Demo Done'] || 0)), 'Meeting+ booked (now)'),
-    kpi(fmt((f.Opportunity || 0)), 'Opportunity (now)'),
-    kpi(fmt((f['AE Introduced'] || 0) + (f.Proposal || 0)), 'Active opps (now)'),
-  ].join('');
-  document.getElementById('kpi-strip').innerHTML = html;
+  const items = [
+    kpi('$' + fmt(k.pipeline_value_$ || 0), 'Pipeline value'),
+    kpi(fmt(k.open_deals_count || 0), 'Open deals'),
+    kpi('$' + fmt(k.avg_deal_size_$ || 0), 'Avg deal size'),
+    kpi((k.win_rate_pct || 0) + '%', 'Win rate · all-time'),
+    kpi('$' + fmt(k.won_total_$ || 0), 'Won $ · all-time'),
+    SELECTED_WINDOW !== 'all_time'
+      ? kpi(fmt(movement.meetings_booked || 0), `Meetings (${wlabel})`)
+      : null,
+    SELECTED_WINDOW !== 'all_time'
+      ? kpi(fmt(movement.new_engaged_or_above || 0), `New active (${wlabel})`)
+      : null,
+  ].filter(Boolean);
+  document.getElementById('kpi-strip').innerHTML = items.join('');
 }
 function kpi(v, l) {
-  return `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  return `<div class="kpi"><div class="v">${v}</div><div class="l">${escapeHtml(l)}</div></div>`;
+}
+
+// ============= MOVEMENT BANNER =============
+function renderMovement() {
+  const card = document.getElementById('movement-card');
+  if (SELECTED_WINDOW === 'all_time') { card.hidden = true; return; }
+  const m = (DATA.movement || {})[SELECTED_WINDOW] || {};
+  const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
+  document.getElementById('movement-title').textContent = `Movement ${wlabel}`;
+  document.getElementById('movement-grid').innerHTML = [
+    movementCell(fmt(m.new_engaged_or_above || 0), 'Engaged or above'),
+    movementCell(fmt(m.opportunities_active || 0), 'In Opportunity'),
+    movementCell(fmt(m.meetings_booked || 0), 'Meetings booked'),
+    movementCell(fmt(m.won || 0), 'Won', '$' + fmt(m.won_amount || 0)),
+    movementCell(fmt(m.lost || 0), 'Lost'),
+  ].join('');
+  card.hidden = false;
+}
+function movementCell(big, label, sub) {
+  return `<div class="movement-cell"><div class="big">${big}</div><div class="lbl">${label}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
 }
 
 // ============= FUNNEL =============
 function renderFunnel() {
-  const total = DATA.totals.active_target_accounts;
-  const max = Math.max(...Object.values(DATA.funnel_active_target));
-  const rows = DATA.stage_order.map(st => {
-    const c = DATA.funnel_active_target[st] || 0;
+  const funnel = DATA.funnel_by_window?.[SELECTED_WINDOW] || {};
+  const pipeline = DATA.pipeline_by_window?.[SELECTED_WINDOW] || {};
+  const dealsCount = DATA.deals_count_by_window?.[SELECTED_WINDOW] || {};
+  const conv = (DATA.conversions_by_window || {})[SELECTED_WINDOW] || {};
+  const total = Object.values(funnel).reduce((a,b) => a+b, 0);
+  const max = Math.max(...Object.values(funnel), 1);
+
+  const rows = DATA.stage_order.map((st, i) => {
+    const c = funnel[st] || 0;
+    const $ = pipeline[st] || 0;
+    const dealN = dealsCount[st] || 0;
     const pct = total > 0 ? (c / total * 100).toFixed(1) : '0';
     const w = max > 0 ? (c / max * 100).toFixed(1) : 0;
-    const cls = STAGE_COLOR_CLASS[st] || 'st-Cold';
+    const cls = STAGE_CLASS[st] || 'st-Cold';
+    const convPct = (i < DATA.stage_order.length - 1) ? conv[st] : null;
+    const dollarStr = $ > 0 ? `<span class="fb-dollar">$${fmt($)}</span>` : '<span class="fb-dollar dim">—</span>';
+    const dealsStr = dealN > 0 ? `<span class="fb-deals dim">${dealN} deals</span>` : '';
+    const convStr = convPct !== null
+      ? `<span class="fb-conv ${convPct >= 30 ? 'good' : (convPct >= 10 ? 'ok' : 'low')}">→ ${convPct}%</span>`
+      : '';
     return `<div class="fb-row" data-stage="${st}">
       <div class="fb-name">${st}</div>
       <div class="fb-bar-track"><div class="fb-bar-fill ${cls}" style="width:${w}%"></div></div>
       <div class="fb-count">${fmt(c)}</div>
       <div class="fb-pct">${pct}%</div>
+      ${convStr || '<span></span>'}
+      ${dollarStr}
+      ${dealsStr || '<span></span>'}
     </div>`;
   }).join('');
   document.getElementById('funnel-bars').innerHTML = rows;
+  const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
   document.getElementById('funnel-subtitle').textContent =
-    `${fmt(total)} ICP-fit accounts · ${fmt(DATA.totals.tam_accounts)} TAM total`;
+    SELECTED_WINDOW === 'all_time'
+      ? `Snapshot of ${fmt(total)} accounts · arrows show conversion to next stage`
+      : `${fmt(total)} accounts active in ${wlabel} · arrows show conversion`;
 
-  // wire clicks
   document.querySelectorAll('.fb-row').forEach(row => {
     row.addEventListener('click', () => selectStage(row.dataset.stage));
+  });
+  // restore selection styling
+  document.querySelectorAll('.fb-row').forEach(r => {
+    r.classList.toggle('selected', r.dataset.stage === SELECTED_STAGE);
   });
 }
 
@@ -195,9 +237,8 @@ function selectStage(stage) {
   SELECTED_STAGE = stage;
   SELECTED_DOMAIN = null;
   PAGE = 0;
-  document.querySelectorAll('.fb-row').forEach(r => {
-    r.classList.toggle('selected', r.dataset.stage === stage);
-  });
+  document.querySelectorAll('.fb-row').forEach(r =>
+    r.classList.toggle('selected', r.dataset.stage === stage));
   renderStagePanel();
   document.getElementById('stage-panel').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -206,12 +247,13 @@ function selectStage(stage) {
 function renderStagePanel() {
   const panel = document.getElementById('stage-panel');
   if (!SELECTED_STAGE) { panel.hidden = true; return; }
-  const data = DATA.stages[SELECTED_STAGE] || {accounts:[]};
+  const data = (DATA.stages_by_window?.[SELECTED_WINDOW] || {})[SELECTED_STAGE] || { accounts: [] };
   panel.hidden = false;
   document.getElementById('stage-title').textContent = SELECTED_STAGE;
-  document.getElementById('stage-meta').textContent =
-    `${fmt(data.count || 0)} accounts at this stage` +
-    (data.has_more ? ` · top ${data.accounts.length} shown` : '');
+  let metaParts = [`${fmt(data.count || 0)} accounts`];
+  if (data.pipeline_$ > 0) metaParts.push(`$${fmt(data.pipeline_$)} pipeline`);
+  if (data.has_more) metaParts.push(`top ${data.accounts.length} shown of ${fmt(data.total_in_stage_active)}`);
+  document.getElementById('stage-meta').textContent = metaParts.join(' · ');
   document.getElementById('stage-why').textContent = data.why_matters || '';
   document.getElementById('stage-suggested').textContent = data.suggested_action || '';
   renderAccountTable();
@@ -219,38 +261,38 @@ function renderStagePanel() {
 }
 
 function renderAccountTable() {
-  const data = DATA.stages[SELECTED_STAGE] || {accounts:[]};
+  const data = (DATA.stages_by_window?.[SELECTED_WINDOW] || {})[SELECTED_STAGE] || { accounts: [] };
   const accounts = data.accounts;
   const start = PAGE * PAGE_SIZE;
   const slice = accounts.slice(start, start + PAGE_SIZE);
   const tbody = document.getElementById('account-tbody');
   tbody.innerHTML = slice.map(a => {
     const tier = (a.tier || 'untiered').replace(/[^A-Z0-9]/g, '');
+    const dollarCell = a.open_deals_amount > 0
+      ? `<span class="mono">$${fmt(a.open_deals_amount)}</span>`
+      : '<span class="dim">—</span>';
     return `<tr class="acct-row${a.domain === SELECTED_DOMAIN ? ' selected':''}" data-domain="${escapeAttr(a.domain)}">
-      <td>
-        <div class="acct-name">${escapeHtml(a.company_name || a.domain)}</div>
-        <div class="acct-domain">${escapeHtml(a.domain)}</div>
-      </td>
+      <td><div class="acct-name">${escapeHtml(a.company_name || a.domain)}</div>
+          <div class="acct-domain">${escapeHtml(a.domain)}</div></td>
       <td><span class="tier-tag ${tier}">${escapeHtml(a.tier || '—')}</span></td>
       <td class="score-cell">${a.priority_score}</td>
+      <td>${dollarCell}</td>
       <td class="why-cell" title="${escapeAttr(a.why_now)}">${escapeHtml(a.why_now || '—')}</td>
       <td>${escapeHtml(a.ae_owner || '—')}</td>
       <td class="mono small dim">${escapeHtml(a.top_signal_date || '—')}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" class="dim small" style="padding:24px;text-align:center;">No accounts in this stage.</td></tr>';
+  }).join('') || '<tr><td colspan="7" class="dim small" style="padding:24px;text-align:center;">No accounts in this stage / window.</td></tr>';
 
-  // paging
   const total = accounts.length;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const pages = Math.ceil(total / PAGE_SIZE);
   const pagingDiv = document.getElementById('account-paging');
   if (total <= PAGE_SIZE) {
     pagingDiv.innerHTML = '';
   } else {
     pagingDiv.innerHTML = `
       <button id="prev-pg" ${PAGE === 0 ? 'disabled' : ''}>← Prev</button>
-      <span>Page ${PAGE + 1} of ${totalPages} — ${fmt(total)} accounts ${data.has_more ? `(top ${total} of ${fmt(data.total_in_stage_active)})` : ''}</span>
-      <button id="next-pg" ${PAGE >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
-    `;
+      <span>Page ${PAGE + 1} of ${pages} · ${fmt(total)} accounts ${data.has_more ? `(top ${total} of ${fmt(data.total_in_stage_active)})` : ''}</span>
+      <button id="next-pg" ${PAGE >= pages - 1 ? 'disabled' : ''}>Next →</button>`;
     document.getElementById('prev-pg').addEventListener('click', () => { PAGE--; renderAccountTable(); });
     document.getElementById('next-pg').addEventListener('click', () => { PAGE++; renderAccountTable(); });
   }
@@ -260,7 +302,6 @@ function renderAccountTable() {
       SELECTED_DOMAIN = row.dataset.domain;
       renderAccountTable();
       renderAccountDetail();
-      // Scroll the detail panel into view (small delay for render)
       setTimeout(() => {
         const d = document.getElementById('account-detail');
         if (d && !d.hidden) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -272,7 +313,7 @@ function renderAccountTable() {
 function renderAccountDetail() {
   const detailDiv = document.getElementById('account-detail');
   if (!SELECTED_DOMAIN) { detailDiv.hidden = true; return; }
-  const data = DATA.stages[SELECTED_STAGE] || {accounts:[]};
+  const data = (DATA.stages_by_window?.[SELECTED_WINDOW] || {})[SELECTED_STAGE] || { accounts: [] };
   const a = data.accounts.find(x => x.domain === SELECTED_DOMAIN);
   if (!a) { detailDiv.hidden = true; return; }
   detailDiv.hidden = false;
@@ -282,8 +323,7 @@ function renderAccountDetail() {
       <div class="nm">${escapeHtml(c.name)} <span class="dim small">${escapeHtml(c.seniority || '')}</span></div>
       <div class="ti">${escapeHtml(c.title || '')}</div>
       <div class="em">${escapeHtml(c.email || '')}${c.phone ? ' · 📱 ' + escapeHtml(c.phone) : ''}</div>
-    </li>
-  `).join('') || '<li class="dim small">No contacts found at this account.</li>';
+    </li>`).join('') || '<li class="dim small">No contacts found at this account.</li>';
 
   const sigsHtml = (a.recent_signals || []).map(s => `
     <li class="signal-item">
@@ -291,17 +331,15 @@ function renderAccountDetail() {
       <span class="sig-type">${escapeHtml(s.type)}</span>
       <span class="sig-source">· ${escapeHtml(s.source)}${s.channel ? ' / ' + escapeHtml(s.channel) : ''}</span>
       <div class="sig-details">${escapeHtml(s.details)}</div>
-    </li>
-  `).join('') || '<li class="dim small">No signals in window.</li>';
+    </li>`).join('') || '<li class="dim small">No signals in window.</li>';
 
-  // pull feedback for this account from team
   const author = getAuthor();
   const scopeKey = `account:${SELECTED_DOMAIN}`;
-  const allFeedback = FEEDBACK_BY_SCOPE[scopeKey] || [];
-  const myFeedback = allFeedback.find(r => r.author === author) || {};
-  const teamFeedback = allFeedback.filter(r => r.author !== author);
-  const tagButtons = QUICK_TAGS.map(t =>
-    `<button class="qtag${(myFeedback.tags || []).includes(t) ? ' active' : ''}" data-tag="${escapeAttr(t)}">${escapeHtml(t)}</button>`
+  const allFb = FEEDBACK_BY_SCOPE[scopeKey] || [];
+  const myFb = allFb.find(r => r.author === author) || {};
+  const teamFb = allFb.filter(r => r.author !== author);
+  const tags = QUICK_TAGS.map(t =>
+    `<button class="qtag${(myFb.tags || []).includes(t) ? ' active' : ''}" data-tag="${escapeAttr(t)}">${escapeHtml(t)}</button>`
   ).join('');
 
   detailDiv.innerHTML = `
@@ -310,185 +348,164 @@ function renderAccountDetail() {
         <h3>${escapeHtml(a.company_name || a.domain)}</h3>
         <div class="dim small">${escapeHtml(a.domain)} · ${escapeHtml(a.tier || '')} · ${escapeHtml(a.industry || '')} · ${escapeHtml(a.country || '')}</div>
       </div>
-      <div class="ad-meta">score ${a.priority_score} · stage ${escapeHtml(SELECTED_STAGE)}</div>
+      <div class="ad-meta">${a.open_deals_amount > 0 ? '$' + fmt(a.open_deals_amount) + ' · ' : ''}score ${a.priority_score} · ${escapeHtml(SELECTED_STAGE)}</div>
     </div>
-
     ${a.why_now ? `<div class="why-matters" style="border:none;padding:0;margin-bottom:14px;"><strong style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;">Why now:</strong> ${escapeHtml(a.why_now)}</div>` : ''}
     ${a.outreach_angle ? `<div class="why-matters" style="border:none;padding:0;margin-bottom:14px;"><strong style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;">Outreach angle:</strong> ${escapeHtml(a.outreach_angle)}</div>` : ''}
 
     <div class="ad-grid">
-      <div class="ad-section">
-        <h4>Contacts (${(a.contacts || []).length})</h4>
-        <ul class="contacts-list">${contactsHtml}</ul>
-      </div>
-      <div class="ad-section">
-        <h4>Recent signals (${(a.recent_signals || []).length})</h4>
-        <ul class="signals-list">${sigsHtml}</ul>
-      </div>
+      <div class="ad-section"><h4>Contacts (${(a.contacts || []).length})</h4><ul class="contacts-list">${contactsHtml}</ul></div>
+      <div class="ad-section"><h4>Recent signals (${(a.recent_signals || []).length})</h4><ul class="signals-list">${sigsHtml}</ul></div>
     </div>
 
     <div class="ad-feedback">
       <h4>Your feedback (as ${escapeHtml(author)})</h4>
-      <textarea id="fb-text" placeholder="What's right or wrong about this? What needs to happen for it to progress?">${escapeHtml(myFeedback.note || '')}</textarea>
-      <div class="quick-tags">${tagButtons}</div>
-      <div id="fb-saved" class="saved-stamp" style="display:none">Saved to team.</div>
-
-      ${teamFeedback.length ? `
-        <h4 style="margin-top:18px">Team has said (${teamFeedback.length})</h4>
-        <ul class="signals-list">
-          ${teamFeedback.map(t => `<li class="signal-item">
-            <span class="sig-date">${escapeHtml(t.author || 'anonymous')}</span>
-            <span class="sig-source">· ${escapeHtml((t.created_at || '').slice(0, 10))}</span>
-            ${(t.tags || []).length ? `<span class="dim small"> · ${escapeHtml((t.tags || []).join(', '))}</span>` : ''}
-            ${t.note ? `<div class="sig-details">${escapeHtml(t.note)}</div>` : ''}
-          </li>`).join('')}
-        </ul>` : ''}
+      <textarea id="fb-text" placeholder="What's right or wrong about this? What needs to happen for it to progress?">${escapeHtml(myFb.note || '')}</textarea>
+      <div class="quick-tags">${tags}</div>
+      <div id="fb-saved" class="saved-stamp" style="display:none">Saved.</div>
+      ${teamFb.length ? `<h4 style="margin-top:18px">Team has said (${teamFb.length})</h4>
+        <ul class="signals-list">${teamFb.map(t => `<li class="signal-item">
+          <span class="sig-date">${escapeHtml(t.author || 'anon')}</span>
+          <span class="sig-source">· ${escapeHtml((t.created_at || '').slice(0,10))}</span>
+          ${(t.tags || []).length ? `<span class="dim small"> · ${escapeHtml((t.tags || []).join(', '))}</span>` : ''}
+          ${t.note ? `<div class="sig-details">${escapeHtml(t.note)}</div>` : ''}
+        </li>`).join('')}</ul>` : ''}
     </div>
   `;
-
-  // wire feedback save (debounced to Supabase)
-  const ta = document.getElementById('fb-text');
-  ta.addEventListener('input', () => debouncedSaveFeedback('account', SELECTED_DOMAIN));
+  document.getElementById('fb-text').addEventListener('input', () => debouncedSaveFeedback('account', SELECTED_DOMAIN));
   document.querySelectorAll('.qtag').forEach(b => {
     b.addEventListener('click', () => { b.classList.toggle('active'); debouncedSaveFeedback('account', SELECTED_DOMAIN); });
   });
 }
 
-let __fbDebounce = null;
-function debouncedSaveFeedback(scope, scopeKey) {
-  clearTimeout(__fbDebounce);
-  __fbDebounce = setTimeout(() => saveFeedbackToSupabase(scope, scopeKey), 600);
+let __fbT = null;
+function debouncedSaveFeedback(scope, sk) {
+  clearTimeout(__fbT);
+  __fbT = setTimeout(() => saveFeedbackToSupabase(scope, sk), 600);
 }
-
-async function saveFeedbackToSupabase(scope, scopeKey) {
+async function saveFeedbackToSupabase(scope, sk) {
   const note = (document.getElementById('fb-text') || {}).value || '';
   const tags = Array.from(document.querySelectorAll('.qtag.active')).map(b => b.dataset.tag);
   const author = getAuthor();
-  const k = `${scope}:${scopeKey}`;
+  const k = `${scope}:${sk}`;
   const existing = (FEEDBACK_BY_SCOPE[k] || []).find(r => r.author === author);
-
   try {
     if (existing) {
-      // update
       await sbRequest(`dashboard_feedback?id=eq.${existing.id}`, {
         method: 'PATCH',
         headers: { 'Prefer': 'return=representation' },
         body: JSON.stringify({ note, tags, updated_at: new Date().toISOString() }),
       });
-      Object.assign(existing, { note, tags, updated_at: new Date().toISOString() });
+      Object.assign(existing, { note, tags });
     } else {
-      // insert
       const inserted = await sbRequest('dashboard_feedback', {
         method: 'POST',
         headers: { 'Prefer': 'return=representation' },
-        body: JSON.stringify([{ scope, scope_key: scopeKey, author, note, tags }]),
+        body: JSON.stringify([{ scope, scope_key: sk, author, note, tags }]),
       });
       const row = Array.isArray(inserted) ? inserted[0] : inserted;
       (FEEDBACK_BY_SCOPE[k] = FEEDBACK_BY_SCOPE[k] || []).push(row);
     }
     const s = document.getElementById('fb-saved');
-    if (s) {
-      s.style.display = 'block';
-      clearTimeout(window.__fbStampTO);
-      window.__fbStampTO = setTimeout(() => { s.style.display = 'none'; }, 1200);
-    }
-  } catch (e) {
-    console.warn('save failed:', e);
-    alert('Could not save feedback: ' + e.message);
+    if (s) { s.style.display = 'block'; clearTimeout(window.__fbS); window.__fbS = setTimeout(() => s.style.display='none', 1200); }
+  } catch (e) { console.warn('save failed:', e); alert('Save failed: ' + e.message); }
+}
+
+// ============= TOP OPPORTUNITIES =============
+function renderTopOpps() {
+  const opps = DATA.top_opportunities || [];
+  const html = opps.length === 0
+    ? '<div class="dim small" style="padding:14px 0;">No active opportunities yet.</div>'
+    : `<table class="account-table">
+        <thead><tr><th>Account</th><th>Stage</th><th>$</th><th>Tier</th><th>Score</th><th>Owner</th><th>Why now</th></tr></thead>
+        <tbody>${opps.map(o => `<tr>
+          <td><div class="acct-name">${escapeHtml(o.company_name)}</div><div class="acct-domain">${escapeHtml(o.domain)}</div></td>
+          <td><span class="tier-tag">${escapeHtml(o.stage)}</span></td>
+          <td class="mono">${o.amount > 0 ? '$' + fmt(o.amount) : '<span class="dim">—</span>'}</td>
+          <td><span class="tier-tag ${escapeHtml((o.tier || '').replace(/[^A-Z0-9]/g,''))}">${escapeHtml(o.tier || '—')}</span></td>
+          <td class="score-cell">${o.priority_score}</td>
+          <td>${escapeHtml(o.ae_owner || '—')}</td>
+          <td class="why-cell" title="${escapeAttr(o.why_now)}">${escapeHtml(o.why_now || '—')}</td>
+        </tr>`).join('')}</tbody></table>`;
+  document.getElementById('top-opps-table').innerHTML = html;
+}
+
+// ============= STALLED =============
+function renderStalled() {
+  const list = DATA.stalled || [];
+  const html = list.length === 0
+    ? '<div class="dim small" style="padding:14px 0;">No stalled accounts — nice.</div>'
+    : `<table class="account-table">
+        <thead><tr><th>Account</th><th>Stage</th><th>Tier</th><th>Score</th><th>Last signal</th><th>Days stalled</th><th>Why</th></tr></thead>
+        <tbody>${list.map(s => `<tr>
+          <td><div class="acct-name">${escapeHtml(s.company_name)}</div><div class="acct-domain">${escapeHtml(s.domain)}</div></td>
+          <td><span class="tier-tag">${escapeHtml(s.stage)}</span></td>
+          <td><span class="tier-tag ${escapeHtml((s.tier || '').replace(/[^A-Z0-9]/g,''))}">${escapeHtml(s.tier || '—')}</span></td>
+          <td class="score-cell">${s.priority_score}</td>
+          <td class="mono small dim">${escapeHtml(s.last_signal_date)}</td>
+          <td class="score-cell" style="color:var(--red)">${s.days_since}d</td>
+          <td class="why-cell" title="${escapeAttr(s.why_now)}">${escapeHtml(s.why_now || '—')}</td>
+        </tr>`).join('')}</tbody></table>`;
+  document.getElementById('stalled-table').innerHTML = html;
+}
+
+// ============= BY AE =============
+function renderByAE() {
+  const byAE = DATA.by_ae || {};
+  const entries = Object.entries(byAE).sort((a, b) => (b[1].pipeline_$ || 0) - (a[1].pipeline_$ || 0));
+  if (entries.length === 0) {
+    document.getElementById('ae-grid').innerHTML = '<div class="dim small">No AE-owned pipeline yet.</div>';
+    return;
   }
+  document.getElementById('ae-grid').innerHTML = entries.map(([ae, b]) => `
+    <div class="ae-card">
+      <div class="ae-name">${escapeHtml(ae)}</div>
+      <div class="ae-pipeline">$${fmt(b.pipeline_$ || 0)}</div>
+      <div class="dim small">${b.deals || 0} active deal${b.deals === 1 ? '' : 's'}</div>
+      <div class="ae-stats">
+        ${b.opportunity_count ? `<div><b>${b.opportunity_count}</b> in Opp</div>` : ''}
+        ${b.sql_count ? `<div><b>${b.sql_count}</b> SQL/Demo</div>` : ''}
+        ${b.won_count ? `<div><b>${b.won_count}</b> won · $${fmt(b.won_$ || 0)}</div>` : ''}
+      </div>
+      ${(b.top_accounts || []).length ? `<div class="ae-top">Top: ${(b.top_accounts || []).map(t => `${escapeHtml(t.company)} <span class="dim">$${fmt(t.amount)}</span>`).join(' · ')}</div>` : ''}
+    </div>
+  `).join('');
 }
 
-// ============= AXES =============
-function renderAxes() {
-  const grid = document.getElementById('axes-grid');
-  const axes = [
-    { key: 'by_source',   label: 'By source / agency' },
-    { key: 'by_channel',  label: 'By channel' },
-    { key: 'by_campaign', label: 'By campaign' },
-    { key: 'by_sdr',      label: 'By SDR' },
-  ];
-  // Use windowed axes if available, else legacy axes (last_30d default)
-  const windowed = (DATA.axes_by_window || {})[SELECTED_WINDOW];
-  const axesData = windowed || DATA.axes;
-  const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
-  const axesLabel = document.getElementById('axes-window-label');
-  if (axesLabel) axesLabel.textContent = `Activity ${wlabel}`;
-  grid.innerHTML = axes.map(({key, label}) => {
-    const data = axesData[key] || {};
-    const totals = Object.entries(data)
-      .map(([k, stages]) => [k, Object.values(stages).reduce((a, b) => a + b, 0)])
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
-    if (totals.length === 0) return `<div class="axis-card"><h3>${label}</h3><div class="dim small">No data.</div></div>`;
-    const max = Math.max(...totals.map(t => t[1]));
-    const rows = totals.map(([k, n]) => {
-      const w = (n / max * 100).toFixed(0);
-      return `<div class="axis-row">
-        <div class="axis-label" title="${escapeAttr(k)}">${escapeHtml(truncate(k, 22))}</div>
-        <div class="axis-bar"><div class="axis-bar-fill" style="width:${w}%"></div></div>
-        <div class="axis-count">${fmt(n)}</div>
-      </div>`;
-    }).join('');
-    return `<div class="axis-card"><h3>${label}</h3>${rows}</div>`;
-  }).join('');
+// ============= BY SOURCE / CAMPAIGN =============
+function renderBySrcCamp() {
+  const grid = document.getElementById('src-camp-grid');
+  const src = DATA.by_source_opps || {};
+  const camp = DATA.by_campaign_opps || {};
+
+  function panel(label, data) {
+    const sorted = Object.entries(data).sort((a, b) =>
+      (b[1].pipeline_$ + b[1].won_$ + b[1].opportunity * 1000) - (a[1].pipeline_$ + a[1].won_$ + a[1].opportunity * 1000));
+    const rows = sorted.slice(0, 8).map(([k, v]) => `
+      <tr>
+        <td>${escapeHtml(k)}</td>
+        <td class="mono small">${v.unique_accounts}</td>
+        <td class="mono small">${v.opportunity || 0}</td>
+        <td class="mono small">${v.sql_demo || 0}</td>
+        <td class="mono small">$${fmt(v.pipeline_$ || 0)}</td>
+        <td class="mono small">$${fmt(v.won_$ || 0)}</td>
+      </tr>`).join('');
+    return `<div class="src-camp-card">
+      <h3>${label}</h3>
+      <table class="account-table">
+        <thead><tr><th>${label.includes('source') ? 'Source' : 'Campaign'}</th><th>Acct</th><th>Opp</th><th>SQL+</th><th>Pipe $</th><th>Won $</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" class="dim small" style="padding:14px;text-align:center;">No data.</td></tr>'}</tbody>
+      </table></div>`;
+  }
+  grid.innerHTML = panel('By source / agency', src) + panel('By campaign', camp);
 }
 
-// ============= WEEKLY CHART =============
-function renderWeeklyChart() {
-  const wk = DATA.weekly_volume_by_source || {};
-  const weeks = Object.keys(wk).sort();
-  if (weeks.length === 0) return;
-  const sources = new Set();
-  weeks.forEach(w => Object.keys(wk[w]).forEach(s => sources.add(s)));
-  const palette = ['#d4a24c', '#4a8074', '#4a5c7a', '#b5495c', '#72a3c9', '#9b6dba', '#c98c4a', '#5fa860'];
-  const datasets = Array.from(sources).map((s, i) => ({
-    label: s,
-    data: weeks.map(w => wk[w][s] || 0),
-    backgroundColor: palette[i % palette.length],
-    borderWidth: 0,
-  }));
-  const ctx = document.getElementById('weekly-chart').getContext('2d');
-  new Chart(ctx, {
-    type: 'bar',
-    data: { labels: weeks.map(w => w.slice(5)), datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: {
-        x: { stacked: true, ticks: { color: '#a89c8a' }, grid: { color: '#2c354a' } },
-        y: { stacked: true, ticks: { color: '#a89c8a' }, grid: { color: '#2c354a' } },
-      },
-      plugins: {
-        legend: { labels: { color: '#a89c8a', font: { size: 11 } } },
-        tooltip: { mode: 'index' }
-      }
-    }
-  });
-}
-
-// ============= TIME WINDOWS =============
-function renderWindows() {
-  const w = DATA.time_windows || {};
-  const items = [
-    { k: 'month_to_date', label: 'Month to date', sub: w.month_to_date && `since ${w.month_to_date.start}` },
-    { k: 'last_week',     label: 'Last week',     sub: w.last_week && `${w.last_week.start} → ${w.last_week.end}` },
-    { k: 'this_week',     label: 'This week',     sub: w.this_week && `since ${w.this_week.start}` },
-  ];
-  document.getElementById('windows-grid').innerHTML = items.map(i => {
-    const v = (w[i.k] && w[i.k].signals) || 0;
-    return `<div class="window-card">
-      <div class="label">${i.label}</div>
-      <div class="value">${fmt(v)}</div>
-      <div class="sub">${i.sub || ''}</div>
-    </div>`;
-  }).join('');
-}
-
-// ============= NOTES (stage-level, persisted to Supabase) =============
+// ============= NOTES =============
 function renderNotes() {
   const grid = document.getElementById('notes-grid');
   const author = getAuthor();
   grid.innerHTML = DATA.stage_order.map(st => {
-    const data = DATA.stages[st] || {};
+    const data = (DATA.stages_by_window?.[SELECTED_WINDOW] || {})[st] || {};
     const k = `stage:${st}`;
     const all = FEEDBACK_BY_SCOPE[k] || [];
     const mine = all.find(r => r.author === author) || {};
@@ -536,7 +553,7 @@ async function saveStageNote(stage, note) {
 
 async function clearMyNotes() {
   const author = getAuthor();
-  if (!confirm(`Delete all your (${author}) feedback from the team log? This is permanent.`)) return;
+  if (!confirm(`Delete all your (${author}) feedback from the team log? Permanent.`)) return;
   try {
     await sbRequest(`dashboard_feedback?author=eq.${encodeURIComponent(author)}`, { method: 'DELETE' });
     location.reload();
@@ -546,7 +563,6 @@ async function clearMyNotes() {
 function exportNotes() {
   const lines = ['# Refold GTM Dashboard — Team Feedback Export', '',
                  `Generated: ${new Date().toISOString()}`, ''];
-  // group by scope
   lines.push('## Stage notes (all team)\n');
   DATA.stage_order.forEach(st => {
     const all = FEEDBACK_BY_SCOPE[`stage:${st}`] || [];
@@ -581,9 +597,7 @@ function exportNotes() {
 function fmt(n) { return (n || 0).toLocaleString('en-US'); }
 function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return escapeHtml(s); }
-function truncate(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 function formatTime(iso) {
   if (!iso) return '?';
-  const d = new Date(iso);
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 }

@@ -145,18 +145,51 @@ main {
 }
 .hint { color: var(--ink-dim); font-size: 11px; margin-top: 10px; text-align: right; }
 
+/* MOVEMENT */
+.movement-card { background: oklch(0.20 0.020 75 / 0.5); border: 1px solid var(--gold-soft); }
+.movement-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+.movement-cell {
+  background: var(--bg-deep); border: 1px solid var(--line-soft);
+  border-radius: 6px; padding: 16px 20px;
+}
+.movement-cell .big {
+  font-family: 'Bricolage Grotesque', serif; font-size: 26px; font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.movement-cell .lbl { font-size: 11px; color: var(--ink-mute); margin-top: 4px; }
+.movement-cell .sub { font-size: 12px; color: var(--gold); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+
 /* FUNNEL BARS */
 .funnel-bars { display: flex; flex-direction: column; gap: 6px; }
 .fb-row {
   display: grid;
-  grid-template-columns: 130px 1fr 60px 60px;
+  grid-template-columns: 130px 1fr 60px 50px 70px 100px 80px;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s;
   border: 1px solid transparent;
+}
+.fb-conv {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; text-align: right; padding: 0 6px;
+}
+.fb-conv.good { color: var(--green); }
+.fb-conv.ok { color: var(--gold); }
+.fb-conv.low { color: var(--ink-dim); }
+.fb-dollar {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; text-align: right; color: var(--gold);
+}
+.fb-dollar.dim { color: var(--ink-dim); }
+.fb-deals {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; text-align: right;
 }
 .fb-row:hover { background: oklch(0.20 0.018 250); border-color: var(--line); }
 .fb-row.selected { background: var(--selected); border-color: var(--gold-soft); }
@@ -363,6 +396,51 @@ main {
 .ad-feedback .qtag.active { background: oklch(0.28 0.060 75 / 0.3); color: var(--gold); border-color: var(--gold-soft); }
 .ad-feedback .saved-stamp {
   margin-top: 6px; font-size: 11px; color: var(--green);
+}
+
+/* AE GRID */
+.ae-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.ae-card {
+  background: var(--bg-deep);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 16px 18px;
+}
+.ae-card .ae-name {
+  font-family: 'Bricolage Grotesque', serif;
+  font-weight: 500; font-size: 16px;
+}
+.ae-card .ae-pipeline {
+  font-family: 'Bricolage Grotesque', serif;
+  font-size: 26px; color: var(--gold); margin-top: 4px;
+  letter-spacing: -0.02em;
+}
+.ae-card .ae-stats {
+  display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px;
+  padding-top: 10px; border-top: 1px solid var(--line-soft);
+  font-size: 12px; color: var(--ink-mute);
+}
+.ae-card .ae-stats b { color: var(--ink); }
+.ae-card .ae-top {
+  margin-top: 10px; font-size: 11px; color: var(--ink-mute);
+}
+
+/* SRC / CAMP grid */
+.src-camp-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+}
+@media (max-width: 800px) { .src-camp-grid { grid-template-columns: 1fr; } }
+.src-camp-card {
+  background: var(--bg-deep);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px; padding: 14px 16px;
+}
+.src-camp-card h3 {
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-dim); margin-bottom: 10px;
 }
 
 /* AXES GRID */

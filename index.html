@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Refold AI GTM System — Demand Gen Dashboard</title>
+<title>Refold AI GTM System — Pipeline Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231F3A5F'/%3E%3Ctext x='16' y='22' font-size='20' text-anchor='middle' fill='%23D4A24C' font-family='Arial,sans-serif'%3E%E2%97%87%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,7 +13,7 @@
 <body>
 
 <header class="topbar">
-  <div class="brand">◇ Refold AI · <span>GTM System</span></div>
+  <div class="brand">◇ Refold AI · <span>Pipeline Dashboard</span></div>
   <div class="meta">
     <button class="pill" id="author-pill" title="Click to change">…</button>
     <span class="pill" id="generated-at">loading…</span>
@@ -25,13 +25,14 @@
 
   <!-- Window selector -->
   <section class="window-selector">
-    <span class="dim small">Activity window:</span>
+    <span class="dim small">Time window:</span>
     <div class="window-pills" id="window-pills">
       <button class="wpill" data-w="this_week">This week</button>
       <button class="wpill" data-w="this_month">This month</button>
       <button class="wpill" data-w="this_quarter">This quarter</button>
       <button class="wpill" data-w="ytd">YTD</button>
       <button class="wpill" data-w="last_30d">Last 30d</button>
+      <button class="wpill" data-w="all_time">All-time</button>
     </div>
     <span class="dim small" id="window-meta"></span>
   </section>
@@ -39,10 +40,16 @@
   <!-- KPI strip -->
   <section class="kpi-strip" id="kpi-strip"></section>
 
+  <!-- Movement banner (hidden when window=all_time) -->
+  <section class="card movement-card" id="movement-card" hidden>
+    <div class="card-head"><h2 id="movement-title">Movement this window</h2></div>
+    <div class="movement-grid" id="movement-grid"></div>
+  </section>
+
   <!-- FUNNEL -->
   <section class="card">
     <div class="card-head">
-      <h2>Funnel — Active Target</h2>
+      <h2>Funnel</h2>
       <div class="dim small" id="funnel-subtitle"></div>
     </div>
     <div id="funnel-bars" class="funnel-bars"></div>
@@ -68,6 +75,7 @@
             <th>Account</th>
             <th>Tier</th>
             <th>Score</th>
+            <th>$</th>
             <th>Why now</th>
             <th>Owner</th>
             <th>Last sig</th>
@@ -78,55 +86,62 @@
       <div class="paging" id="account-paging"></div>
     </div>
 
-    <!-- Account detail (contacts + signals) -->
     <div id="account-detail" class="account-detail" hidden></div>
   </section>
 
-  <!-- AXES -->
+  <!-- TOP OPPORTUNITIES -->
   <section class="card">
     <div class="card-head">
-      <h2>By source · channel · campaign · SDR</h2>
-      <div class="dim small" id="axes-window-label"></div>
+      <h2>Top opportunities</h2>
+      <div class="dim small">Sorted by deal value, then signal score</div>
     </div>
-    <div class="axes-grid" id="axes-grid"></div>
+    <div id="top-opps-table"></div>
   </section>
 
-  <!-- WEEKLY VOLUME -->
+  <!-- STALLED -->
   <section class="card">
     <div class="card-head">
-      <h2>Weekly signal volume by source</h2>
-      <div class="dim small">Last 12 weeks</div>
+      <h2>Stalled accounts</h2>
+      <div class="dim small">Aware/Engaged · no activity in 30+ days · sorted by score</div>
     </div>
-    <canvas id="weekly-chart" height="220"></canvas>
+    <div id="stalled-table"></div>
   </section>
 
-  <!-- TIME WINDOWS -->
+  <!-- PER-AE -->
   <section class="card">
-    <div class="card-head"><h2>This month · Last week · This week</h2></div>
-    <div class="windows-grid" id="windows-grid"></div>
+    <div class="card-head"><h2>Pipeline by AE</h2></div>
+    <div class="ae-grid" id="ae-grid"></div>
+  </section>
+
+  <!-- BY SOURCE / CAMPAIGN -->
+  <section class="card">
+    <div class="card-head">
+      <h2>By source · by campaign</h2>
+      <div class="dim small">Opportunities + $ contributed (lifetime)</div>
+    </div>
+    <div class="src-camp-grid" id="src-camp-grid"></div>
   </section>
 
   <!-- NOTES -->
   <section class="card">
     <div class="card-head">
-      <h2>Meeting notes · what to do per stage</h2>
+      <h2>Stage notes · what to do</h2>
       <div class="dim small">Shared with your team · synced to Supabase</div>
     </div>
     <div class="notes-grid" id="notes-grid"></div>
     <div class="notes-actions">
-      <button id="export-notes-btn" class="btn">Export notes as text</button>
-      <button id="clear-notes-btn"  class="btn ghost">Clear all</button>
+      <button id="export-notes-btn" class="btn">Export team feedback</button>
+      <button id="clear-notes-btn"  class="btn ghost">Clear my notes</button>
     </div>
   </section>
 
   <footer>
-    <span>Refold AI GTM System · internal dashboard</span>
-    <span class="dim">Data refreshes 4×/day · 16:00 / 20:00 / 00:00 / 04:00 UTC</span>
+    <span>Refold AI GTM System · pipeline dashboard</span>
+    <span class="dim">Refreshes 4×/day · 16:00 / 20:00 / 00:00 / 04:00 UTC</span>
   </footer>
 
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="dashboard.js"></script>
 </body>
 </html>
