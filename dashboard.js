@@ -407,22 +407,30 @@ async function saveFeedbackToSupabase(scope, sk) {
   } catch (e) { console.warn('save failed:', e); alert('Save failed: ' + e.message); }
 }
 
-// ============= TOP DEMAND-GEN ACCOUNTS =============
+// ============= TOP ACCOUNTS — split by stage =============
 function renderTopOpps() {
-  const opps = DATA.top_demand_gen_accounts || DATA.top_opportunities || [];
-  const html = opps.length === 0
-    ? '<div class="dim small" style="padding:14px 0;">No accounts in active demand-gen stages yet.</div>'
-    : `<table class="account-table">
-        <thead><tr><th>Account</th><th>Stage</th><th>Tier</th><th>Score</th><th>Last sig</th><th>Why now</th></tr></thead>
-        <tbody>${opps.map(o => `<tr>
-          <td><div class="acct-name">${escapeHtml(o.company_name)}</div><div class="acct-domain">${escapeHtml(o.domain)}</div></td>
-          <td><span class="tier-tag">${escapeHtml(o.stage)}</span></td>
-          <td><span class="tier-tag ${escapeHtml((o.tier || '').replace(/[^A-Z0-9]/g,''))}">${escapeHtml(o.tier || '—')}</span></td>
-          <td class="score-cell">${o.priority_score}</td>
-          <td class="mono small dim">${escapeHtml(o.top_signal_date || '—')}</td>
-          <td class="why-cell" title="${escapeAttr(o.why_now)}">${escapeHtml(o.why_now || '—')}</td>
-        </tr>`).join('')}</tbody></table>`;
-  document.getElementById('top-opps-table').innerHTML = html;
+  const split = DATA.top_by_stage || {};
+  renderStageTopTable('top-engaged-table', split.Engaged || [], 'No accounts at Engaged yet.');
+  renderStageTopTable('top-sdr-table',     split['SDR Contacted'] || [], 'No SDR-contacted accounts yet.');
+  renderStageTopTable('top-opp-table',     split.Opportunity || [], 'No Opportunity-stage accounts yet.');
+}
+
+function renderStageTopTable(elId, rows, emptyMsg) {
+  const target = document.getElementById(elId);
+  if (!target) return;
+  if (rows.length === 0) {
+    target.innerHTML = `<div class="dim small" style="padding:14px 0;">${emptyMsg}</div>`;
+    return;
+  }
+  target.innerHTML = `<table class="account-table">
+    <thead><tr><th>Account</th><th>Tier</th><th>Score</th><th>Last sig</th><th>Why now</th></tr></thead>
+    <tbody>${rows.map(o => `<tr>
+      <td><div class="acct-name">${escapeHtml(o.company_name)}</div><div class="acct-domain">${escapeHtml(o.domain)}</div></td>
+      <td><span class="tier-tag ${escapeHtml((o.tier || '').replace(/[^A-Z0-9]/g,''))}">${escapeHtml(o.tier || '—')}</span></td>
+      <td class="score-cell">${o.priority_score}</td>
+      <td class="mono small dim">${escapeHtml(o.top_signal_date || '—')}</td>
+      <td class="why-cell" title="${escapeAttr(o.why_now)}">${escapeHtml(o.why_now || '—')}</td>
+    </tr>`).join('')}</tbody></table>`;
 }
 
 // ============= STALLED =============
