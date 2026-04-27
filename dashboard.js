@@ -152,16 +152,17 @@ function renderCampaignPanels() {
   grid.innerHTML = cards || '<div class="dim small">No campaign data yet.</div>';
 }
 
-// ============= SDR PANELS (B3) =============
+// ============= COLD OUTBOUND SENDER PANELS =============
 function renderSdrPanels() {
   const grid = document.getElementById('sdr-grid');
   if (!grid) return;
   const panels = DATA.sdr_panels || {};
   const stageOrder = DATA.stage_order || [];
   const entries = Object.entries(panels)
+    .filter(([k]) => k !== 'Unassigned')
     .sort((a, b) => (b[1].active_accounts || 0) - (a[1].active_accounts || 0));
   if (entries.length === 0) {
-    grid.innerHTML = '<div class="dim small">No SDR-attributed signals yet. Once Bay Area cadences ingest with owner info, this populates.</div>';
+    grid.innerHTML = '<div class="dim small">No outbound-sender attribution yet. Bay Area Leadgen cadences populate this.</div>';
     return;
   }
   grid.innerHTML = entries.map(([owner, p]) => {
