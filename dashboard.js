@@ -95,6 +95,7 @@ function renderAll() {
   renderTopOpps();
   renderStalled();
   renderCampaignPanels();
+  renderSdrPanels();
   renderBySrcCamp();
   renderNotes();
   renderStagePanel();
@@ -149,6 +150,61 @@ function renderCampaignPanels() {
     </div>`;
   }).join('');
   grid.innerHTML = cards || '<div class="dim small">No campaign data yet.</div>';
+}
+
+// ============= SDR PANELS (B3) =============
+function renderSdrPanels() {
+  const grid = document.getElementById('sdr-grid');
+  if (!grid) return;
+  const panels = DATA.sdr_panels || {};
+  const stageOrder = DATA.stage_order || [];
+  const entries = Object.entries(panels)
+    .sort((a, b) => (b[1].active_accounts || 0) - (a[1].active_accounts || 0));
+  if (entries.length === 0) {
+    grid.innerHTML = '<div class="dim small">No SDR-attributed signals yet. Once Bay Area cadences ingest with owner info, this populates.</div>';
+    return;
+  }
+  grid.innerHTML = entries.map(([owner, p]) => {
+    const totalAtStages = Object.values(p.by_stage || {}).reduce((a,b)=>a+b, 0);
+    const stageBars = stageOrder.map(st => {
+      const n = (p.by_stage || {})[st] || 0;
+      if (n === 0) return '';
+      const pct = totalAtStages > 0 ? (n / totalAtStages * 100).toFixed(0) : 0;
+      const cls = STAGE_CLASS[st] || 'st-Cold';
+      return `<div class="cc-stage-row">
+        <span class="cc-stage-label">${escapeHtml(st)}</span>
+        <span class="cc-stage-bar"><span class="cc-stage-fill ${cls}" style="width:${pct}%"></span></span>
+        <span class="cc-stage-count">${fmt(n)}</span>
+      </div>`;
+    }).filter(Boolean).join('');
+    const topRows = (p.top_accounts || []).map(a => `
+      <tr class="acct-row" data-domain="${escapeHtml(a.domain)}">
+        <td>${escapeHtml(a.company_name)}</td>
+        <td>${escapeHtml(a.tier || '')}</td>
+        <td>${escapeHtml(a.stage || '')}</td>
+        <td class="num">${fmt(a.priority_score)}</td>
+      </tr>`).join('');
+    return `<div class="campaign-card">
+      <div class="cc-name">${escapeHtml(owner)}</div>
+      <div class="cc-stats">
+        <div><span class="cc-big">${fmt(p.unique_accounts || 0)}</span><span class="cc-lbl">accounts touched</span></div>
+        <div><span class="cc-big">${fmt(p.active_accounts || 0)}</span><span class="cc-lbl">active in funnel</span></div>
+        <div><span class="cc-big">${fmt(p.signals_30d || 0)}</span><span class="cc-lbl">signals · 30d</span></div>
+        <div><span class="cc-big">${fmt(p.signals_total || 0)}</span><span class="cc-lbl">signals total</span></div>
+      </div>
+      <div class="cc-stages">${stageBars || '<div class="dim small">No active funnel data.</div>'}</div>
+      ${topRows ? `<table class="account-table sdr-mini-table"><thead><tr>
+          <th>Top active account</th><th>Tier</th><th>Stage</th><th class="num">Score</th>
+        </tr></thead><tbody>${topRows}</tbody></table>` : ''}
+    </div>`;
+  }).join('');
+  // Wire row clicks to drilldown
+  grid.querySelectorAll('.acct-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const dom = row.dataset.domain;
+      if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
+    });
+  });
 }
 
 document.getElementById('refresh-btn').addEventListener('click', load);
