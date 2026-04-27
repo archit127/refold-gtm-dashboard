@@ -167,8 +167,15 @@ function renderCampaignPanels() {
       : '';
 
     // Account list (top by priority, with AE flag) — only show for SDR-focus panels
+    // Show full account list for SDR-focus + leadership-curated panels;
+    // skip for big agency-fed lists (TAM, Bay Area, Recotap) which would
+    // be too long to render usefully here.
     const showList = (p.accounts_list && p.accounts_list.length > 0
-                      && (name.startsWith('Tejas') || name.startsWith('Maajid') || name.startsWith('Mani')));
+                      && (name.startsWith('Tejas') ||
+                          name.startsWith('Maajid') ||
+                          name.startsWith('Mani') ||
+                          name === 'Priority accounts' ||
+                          name === 'Must + Core'));
     const acctRows = showList
       ? p.accounts_list.map(a => `
           <tr class="acct-row${a.ae_engaged ? ' ae-engaged' : ''}" data-domain="${escapeHtml(a.domain)}">
