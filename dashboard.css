@@ -511,6 +511,72 @@ table.account-table tbody tr.acct-row {
   margin-top: 10px; font-size: 11px; color: var(--ink-mute);
 }
 
+/* CAMPAIGN DEEP-DIVE GRID */
+.campaign-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+.campaign-card {
+  background: var(--bg-deep);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--gold-soft);
+  border-radius: 6px;
+  padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.campaign-card.empty {
+  border-left-color: var(--line);
+  opacity: 0.6;
+}
+.cc-name {
+  font-family: 'Bricolage Grotesque', serif;
+  font-weight: 500; font-size: 16px;
+  letter-spacing: -0.01em;
+}
+.cc-stats {
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.cc-stats > div { display: flex; flex-direction: column; }
+.cc-big {
+  font-family: 'Bricolage Grotesque', serif;
+  font-size: 18px; font-weight: 500;
+  color: var(--gold);
+}
+.cc-lbl { font-size: 9px; color: var(--ink-dim); letter-spacing: 0.06em; }
+.cc-stages { display: flex; flex-direction: column; gap: 3px; }
+.cc-stage-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 30px;
+  align-items: center; gap: 6px;
+  font-size: 11px;
+}
+.cc-stage-label { color: var(--ink-mute); }
+.cc-stage-bar {
+  background: oklch(0.20 0.018 250);
+  height: 6px; border-radius: 2px; overflow: hidden;
+}
+.cc-stage-fill { display: block; height: 100%; }
+.cc-stage-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--ink-mute); text-align: right;
+}
+.cc-types {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+}
+.cc-type-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  background: oklch(0.20 0.018 250);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--ink-mute);
+}
+
 /* SRC / CAMP grid */
 .src-camp-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 18px;

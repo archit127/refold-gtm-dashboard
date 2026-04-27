@@ -94,10 +94,61 @@ function renderAll() {
   renderFunnel();
   renderTopOpps();
   renderStalled();
+  renderCampaignPanels();
   renderBySrcCamp();
   renderNotes();
   renderStagePanel();
   renderWindowMeta();
+}
+
+// ============= CAMPAIGN DEEP-DIVE PANELS =============
+function renderCampaignPanels() {
+  const grid = document.getElementById('campaign-grid');
+  if (!grid) return;
+  const panels = DATA.campaign_panels || {};
+  const stageOrder = DATA.stage_order || [];
+  const cards = Object.entries(panels).map(([name, p]) => {
+    const accts = p.unique_accounts || 0;
+    if (accts === 0 && (p.signals_total || 0) === 0) {
+      // empty campaign — render dim placeholder
+      return `<div class="campaign-card empty">
+        <div class="cc-name">${escapeHtml(name)}</div>
+        <div class="dim small">No signals tagged with this campaign yet.</div>
+      </div>`;
+    }
+    // Funnel mini-bars per stage
+    const totalAtStages = Object.values(p.by_stage || {}).reduce((a,b)=>a+b, 0);
+    const stageBars = stageOrder.map(st => {
+      const n = (p.by_stage || {})[st] || 0;
+      if (n === 0) return '';
+      const pct = totalAtStages > 0 ? (n / totalAtStages * 100).toFixed(0) : 0;
+      const cls = STAGE_CLASS[st] || 'st-Cold';
+      return `<div class="cc-stage-row">
+        <span class="cc-stage-label">${escapeHtml(st)}</span>
+        <span class="cc-stage-bar"><span class="cc-stage-fill ${cls}" style="width:${pct}%"></span></span>
+        <span class="cc-stage-count">${fmt(n)}</span>
+      </div>`;
+    }).filter(Boolean).join('') || '<div class="dim small">No funnel data yet.</div>';
+
+    // Top signal types
+    const topTypes = Object.entries(p.by_signal_type || {})
+      .slice(0, 5)
+      .map(([t, n]) => `<span class="cc-type-pill">${escapeHtml(t)} <span class="dim">${fmt(n)}</span></span>`)
+      .join('');
+
+    return `<div class="campaign-card">
+      <div class="cc-name">${escapeHtml(name)}</div>
+      <div class="cc-stats">
+        <div><span class="cc-big">${fmt(accts)}</span><span class="cc-lbl">accounts</span></div>
+        <div><span class="cc-big">${fmt(p.unique_contacts || 0)}</span><span class="cc-lbl">contacts</span></div>
+        <div><span class="cc-big">${fmt(p.signals_30d || 0)}</span><span class="cc-lbl">signals · 30d</span></div>
+        <div><span class="cc-big">${fmt(p.signals_total || 0)}</span><span class="cc-lbl">signals total</span></div>
+      </div>
+      <div class="cc-stages">${stageBars}</div>
+      ${topTypes ? `<div class="cc-types">${topTypes}</div>` : ''}
+    </div>`;
+  }).join('');
+  grid.innerHTML = cards || '<div class="dim small">No campaign data yet.</div>';
 }
 
 document.getElementById('refresh-btn').addEventListener('click', load);
