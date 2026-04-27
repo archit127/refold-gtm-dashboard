@@ -94,7 +94,6 @@ function renderAll() {
   renderFunnel();
   renderTopOpps();
   renderStalled();
-  renderByAE();
   renderBySrcCamp();
   renderNotes();
   renderStagePanel();
@@ -144,19 +143,18 @@ function renderWindowMeta() {
 // ============= KPIs =============
 function renderKPIs() {
   const k = DATA.kpis || {};
+  const t = DATA.totals || {};
   const movement = (DATA.movement || {})[SELECTED_WINDOW] || {};
   const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
   const items = [
-    kpi('$' + fmt(k.pipeline_value_$ || 0), 'Pipeline value'),
-    kpi(fmt(k.open_deals_count || 0), 'Open deals'),
-    kpi('$' + fmt(k.avg_deal_size_$ || 0), 'Avg deal size'),
-    kpi((k.win_rate_pct || 0) + '%', 'Win rate · all-time'),
-    kpi('$' + fmt(k.won_total_$ || 0), 'Won $ · all-time'),
+    kpi(fmt(t.active_target_accounts || 0), 'Active target (ICP-fit)'),
+    kpi(fmt(k.in_motion || 0), 'In motion (past Cold)'),
+    kpi(fmt(k.engaged_plus || 0) + ` <span class="accent">·${k.engaged_pct_of_tam || 0}%</span>`, 'Engaged+ accounts'),
+    kpi(fmt(k.sdr_actionable || 0), 'SDR-actionable'),
+    kpi(fmt(k.opportunities || 0), 'Opportunity'),
+    kpi(fmt(k.meetings_booked || 0) + ` <span class="accent">·${k.sdr_to_sql_pct || 0}%</span>`, 'Meetings (SQL+Demo)'),
     SELECTED_WINDOW !== 'all_time'
-      ? kpi(fmt(movement.meetings_booked || 0), `Meetings (${wlabel})`)
-      : null,
-    SELECTED_WINDOW !== 'all_time'
-      ? kpi(fmt(movement.new_engaged_or_above || 0), `New active (${wlabel})`)
+      ? kpi(fmt(movement.new_engaged_or_above || 0), `New Engaged+ (${wlabel})`)
       : null,
   ].filter(Boolean);
   document.getElementById('kpi-strip').innerHTML = items.join('');
@@ -171,13 +169,12 @@ function renderMovement() {
   if (SELECTED_WINDOW === 'all_time') { card.hidden = true; return; }
   const m = (DATA.movement || {})[SELECTED_WINDOW] || {};
   const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
-  document.getElementById('movement-title').textContent = `Movement ${wlabel}`;
+  document.getElementById('movement-title').textContent = `Activity ${wlabel}`;
   document.getElementById('movement-grid').innerHTML = [
+    movementCell(fmt(m.sdr_actionable || 0), 'SDR-actionable'),
     movementCell(fmt(m.new_engaged_or_above || 0), 'Engaged or above'),
     movementCell(fmt(m.opportunities_active || 0), 'In Opportunity'),
-    movementCell(fmt(m.meetings_booked || 0), 'Meetings booked'),
-    movementCell(fmt(m.won || 0), 'Won', '$' + fmt(m.won_amount || 0)),
-    movementCell(fmt(m.lost || 0), 'Lost'),
+    movementCell(fmt(m.meetings_booked || 0), 'Meetings booked (SQL+Demo)'),
   ].join('');
   card.hidden = false;
 }
@@ -188,33 +185,25 @@ function movementCell(big, label, sub) {
 // ============= FUNNEL =============
 function renderFunnel() {
   const funnel = DATA.funnel_by_window?.[SELECTED_WINDOW] || {};
-  const pipeline = DATA.pipeline_by_window?.[SELECTED_WINDOW] || {};
-  const dealsCount = DATA.deals_count_by_window?.[SELECTED_WINDOW] || {};
   const conv = (DATA.conversions_by_window || {})[SELECTED_WINDOW] || {};
   const total = Object.values(funnel).reduce((a,b) => a+b, 0);
   const max = Math.max(...Object.values(funnel), 1);
 
   const rows = DATA.stage_order.map((st, i) => {
     const c = funnel[st] || 0;
-    const $ = pipeline[st] || 0;
-    const dealN = dealsCount[st] || 0;
     const pct = total > 0 ? (c / total * 100).toFixed(1) : '0';
     const w = max > 0 ? (c / max * 100).toFixed(1) : 0;
     const cls = STAGE_CLASS[st] || 'st-Cold';
     const convPct = (i < DATA.stage_order.length - 1) ? conv[st] : null;
-    const dollarStr = $ > 0 ? `<span class="fb-dollar">$${fmt($)}</span>` : '<span class="fb-dollar dim">—</span>';
-    const dealsStr = dealN > 0 ? `<span class="fb-deals dim">${dealN} deals</span>` : '';
-    const convStr = convPct !== null
+    const convStr = convPct !== null && convPct > 0
       ? `<span class="fb-conv ${convPct >= 30 ? 'good' : (convPct >= 10 ? 'ok' : 'low')}">→ ${convPct}%</span>`
-      : '';
+      : '<span></span>';
     return `<div class="fb-row" data-stage="${st}">
       <div class="fb-name">${st}</div>
       <div class="fb-bar-track"><div class="fb-bar-fill ${cls}" style="width:${w}%"></div></div>
       <div class="fb-count">${fmt(c)}</div>
       <div class="fb-pct">${pct}%</div>
-      ${convStr || '<span></span>'}
-      ${dollarStr}
-      ${dealsStr || '<span></span>'}
+      ${convStr}
     </div>`;
   }).join('');
   document.getElementById('funnel-bars').innerHTML = rows;
@@ -268,20 +257,16 @@ function renderAccountTable() {
   const tbody = document.getElementById('account-tbody');
   tbody.innerHTML = slice.map(a => {
     const tier = (a.tier || 'untiered').replace(/[^A-Z0-9]/g, '');
-    const dollarCell = a.open_deals_amount > 0
-      ? `<span class="mono">$${fmt(a.open_deals_amount)}</span>`
-      : '<span class="dim">—</span>';
     return `<tr class="acct-row${a.domain === SELECTED_DOMAIN ? ' selected':''}" data-domain="${escapeAttr(a.domain)}">
       <td><div class="acct-name">${escapeHtml(a.company_name || a.domain)}</div>
           <div class="acct-domain">${escapeHtml(a.domain)}</div></td>
       <td><span class="tier-tag ${tier}">${escapeHtml(a.tier || '—')}</span></td>
       <td class="score-cell">${a.priority_score}</td>
-      <td>${dollarCell}</td>
       <td class="why-cell" title="${escapeAttr(a.why_now)}">${escapeHtml(a.why_now || '—')}</td>
       <td>${escapeHtml(a.ae_owner || '—')}</td>
       <td class="mono small dim">${escapeHtml(a.top_signal_date || '—')}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="7" class="dim small" style="padding:24px;text-align:center;">No accounts in this stage / window.</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="dim small" style="padding:24px;text-align:center;">No accounts in this stage / window.</td></tr>';
 
   const total = accounts.length;
   const pages = Math.ceil(total / PAGE_SIZE);
@@ -411,20 +396,19 @@ async function saveFeedbackToSupabase(scope, sk) {
   } catch (e) { console.warn('save failed:', e); alert('Save failed: ' + e.message); }
 }
 
-// ============= TOP OPPORTUNITIES =============
+// ============= TOP DEMAND-GEN ACCOUNTS =============
 function renderTopOpps() {
-  const opps = DATA.top_opportunities || [];
+  const opps = DATA.top_demand_gen_accounts || DATA.top_opportunities || [];
   const html = opps.length === 0
-    ? '<div class="dim small" style="padding:14px 0;">No active opportunities yet.</div>'
+    ? '<div class="dim small" style="padding:14px 0;">No accounts in active demand-gen stages yet.</div>'
     : `<table class="account-table">
-        <thead><tr><th>Account</th><th>Stage</th><th>$</th><th>Tier</th><th>Score</th><th>Owner</th><th>Why now</th></tr></thead>
+        <thead><tr><th>Account</th><th>Stage</th><th>Tier</th><th>Score</th><th>Last sig</th><th>Why now</th></tr></thead>
         <tbody>${opps.map(o => `<tr>
           <td><div class="acct-name">${escapeHtml(o.company_name)}</div><div class="acct-domain">${escapeHtml(o.domain)}</div></td>
           <td><span class="tier-tag">${escapeHtml(o.stage)}</span></td>
-          <td class="mono">${o.amount > 0 ? '$' + fmt(o.amount) : '<span class="dim">—</span>'}</td>
           <td><span class="tier-tag ${escapeHtml((o.tier || '').replace(/[^A-Z0-9]/g,''))}">${escapeHtml(o.tier || '—')}</span></td>
           <td class="score-cell">${o.priority_score}</td>
-          <td>${escapeHtml(o.ae_owner || '—')}</td>
+          <td class="mono small dim">${escapeHtml(o.top_signal_date || '—')}</td>
           <td class="why-cell" title="${escapeAttr(o.why_now)}">${escapeHtml(o.why_now || '—')}</td>
         </tr>`).join('')}</tbody></table>`;
   document.getElementById('top-opps-table').innerHTML = html;
@@ -449,29 +433,6 @@ function renderStalled() {
   document.getElementById('stalled-table').innerHTML = html;
 }
 
-// ============= BY AE =============
-function renderByAE() {
-  const byAE = DATA.by_ae || {};
-  const entries = Object.entries(byAE).sort((a, b) => (b[1].pipeline_$ || 0) - (a[1].pipeline_$ || 0));
-  if (entries.length === 0) {
-    document.getElementById('ae-grid').innerHTML = '<div class="dim small">No AE-owned pipeline yet.</div>';
-    return;
-  }
-  document.getElementById('ae-grid').innerHTML = entries.map(([ae, b]) => `
-    <div class="ae-card">
-      <div class="ae-name">${escapeHtml(ae)}</div>
-      <div class="ae-pipeline">$${fmt(b.pipeline_$ || 0)}</div>
-      <div class="dim small">${b.deals || 0} active deal${b.deals === 1 ? '' : 's'}</div>
-      <div class="ae-stats">
-        ${b.opportunity_count ? `<div><b>${b.opportunity_count}</b> in Opp</div>` : ''}
-        ${b.sql_count ? `<div><b>${b.sql_count}</b> SQL/Demo</div>` : ''}
-        ${b.won_count ? `<div><b>${b.won_count}</b> won · $${fmt(b.won_$ || 0)}</div>` : ''}
-      </div>
-      ${(b.top_accounts || []).length ? `<div class="ae-top">Top: ${(b.top_accounts || []).map(t => `${escapeHtml(t.company)} <span class="dim">$${fmt(t.amount)}</span>`).join(' · ')}</div>` : ''}
-    </div>
-  `).join('');
-}
-
 // ============= BY SOURCE / CAMPAIGN =============
 function renderBySrcCamp() {
   const grid = document.getElementById('src-camp-grid');
@@ -480,20 +441,21 @@ function renderBySrcCamp() {
 
   function panel(label, data) {
     const sorted = Object.entries(data).sort((a, b) =>
-      (b[1].pipeline_$ + b[1].won_$ + b[1].opportunity * 1000) - (a[1].pipeline_$ + a[1].won_$ + a[1].opportunity * 1000));
+      (b[1].engaged_plus + b[1].sql_demo * 5 + b[1].opportunity * 3) -
+      (a[1].engaged_plus + a[1].sql_demo * 5 + a[1].opportunity * 3));
     const rows = sorted.slice(0, 8).map(([k, v]) => `
       <tr>
         <td>${escapeHtml(k)}</td>
-        <td class="mono small">${v.unique_accounts}</td>
+        <td class="mono small">${v.unique_accounts || 0}</td>
+        <td class="mono small">${v.engaged_plus || 0}</td>
+        <td class="mono small">${v.sdr_actionable || 0}</td>
         <td class="mono small">${v.opportunity || 0}</td>
         <td class="mono small">${v.sql_demo || 0}</td>
-        <td class="mono small">$${fmt(v.pipeline_$ || 0)}</td>
-        <td class="mono small">$${fmt(v.won_$ || 0)}</td>
       </tr>`).join('');
     return `<div class="src-camp-card">
       <h3>${label}</h3>
       <table class="account-table">
-        <thead><tr><th>${label.includes('source') ? 'Source' : 'Campaign'}</th><th>Acct</th><th>Opp</th><th>SQL+</th><th>Pipe $</th><th>Won $</th></tr></thead>
+        <thead><tr><th>${label.includes('source') ? 'Source' : 'Campaign'}</th><th>Acct</th><th>Eng+</th><th>SDR-act</th><th>Opp</th><th>SQL+</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="6" class="dim small" style="padding:14px;text-align:center;">No data.</td></tr>'}</tbody>
       </table></div>`;
   }
