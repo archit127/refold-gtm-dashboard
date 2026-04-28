@@ -171,6 +171,16 @@ h2 { font-size: 18px; }
   max-width: 220px; font-size: 12px; line-height: 1.4;
 }
 .sdr-action-table .past-cell b { color: var(--gold); font-weight: 500; }
+.playbook-note {
+  font-size: 12px;
+  color: var(--ink);
+  background: oklch(28% 0.04 230 / 0.4);
+  border-left: 2px solid oklch(60% 0.10 230);
+  padding: 4px 7px;
+  border-radius: 3px;
+  line-height: 1.4;
+  font-family: 'Geist', sans-serif;
+}
 
 .tier-pill {
   font-family: 'JetBrains Mono', monospace;

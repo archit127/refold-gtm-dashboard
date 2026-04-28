@@ -179,11 +179,16 @@ function renderSdrAction() {
       const why = whyNow(a);
       const angle = outreachAngle(a);
       const pt = a.past_touches || {};
+      const pb = a.playbook || {};
       const ptCell = pt.last_date
         ? `<div><b>${escapeHtml(pt.last_by || '?')}</b> · ${escapeHtml(pt.last_date)}` +
           (pt.count > 1 ? ` <span class="dim">(${pt.count} total)</span>` : '') + `</div>` +
           `<div class="dim small">${escapeHtml(pt.last_note || '')}</div>`
         : '<span class="dim small">No past touches</span>';
+      // Playbook overrides "what to talk about" if present (Mani's hand-curated note)
+      const angleCell = pb.note
+        ? `<div class="playbook-note">${escapeHtml(pb.note)}</div>`
+        : `<span class="dim small">${escapeHtml(angle)}</span>`;
       return `<tr class="acct-row" data-domain="${escapeHtml(a.domain)}">
         <td><b>${escapeHtml(a.company)}</b><div class="dim mono small">${escapeHtml(a.domain)}</div></td>
         <td><span class="tier-pill tier-${escapeHtml(a.tier)}">${escapeHtml((a.tier || '').replace('TIER_', 'T').replace('_', ' '))}</span></td>
@@ -191,7 +196,7 @@ function renderSdrAction() {
         <td>${escapeHtml(a.stage || '—')}</td>
         <td class="past-cell">${ptCell}</td>
         <td class="why-cell">${escapeHtml(why)}</td>
-        <td class="angle-cell dim small">${escapeHtml(angle)}</td>
+        <td class="angle-cell">${angleCell}</td>
       </tr>`;
     }).join('');
 
