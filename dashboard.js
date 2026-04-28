@@ -313,6 +313,34 @@ function renderCampaignPanels() {
   const entries = Object.entries(panels).filter(([_, p]) =>
     (p.unique_accounts || 0) > 0 || (p.signals_total || 0) > 0
   );
+
+  // ===== Comparison ranking strip (cold lists only) =====
+  const coldEntries = entries
+    .filter(([_, p]) => !(p.metrics || {}).is_deal_list && (p.unique_accounts || 0) >= 50)
+    .map(([n, p]) => ({ name: n, m: p.metrics || {}, accts: p.unique_accounts }))
+    .sort((a, b) => (b.m.mtgs_per_100 || 0) - (a.m.mtgs_per_100 || 0));
+  const compareStrip = coldEntries.length >= 2 ? `
+    <div class="campaign-compare card">
+      <div class="card-head"><h2>Cold-list efficiency · ranked</h2>
+        <div class="dim small">Mtgs/100 accts · last 30d · 50+ acct lists only</div></div>
+      <table class="compare-table"><thead><tr>
+        <th>#</th><th>Campaign</th><th class="num">Accts</th>
+        <th class="num">Mtgs/100</th><th class="num">Reply%</th>
+        <th class="num">LI accept%</th><th class="num">Engaged+%</th><th>Verdict</th>
+      </tr></thead><tbody>
+        ${coldEntries.map((e, i) => `<tr>
+          <td class="rank">#${i+1}</td>
+          <td><b>${escapeHtml(e.name)}</b></td>
+          <td class="num">${fmt(e.accts)}</td>
+          <td class="num"><b>${fmt(e.m.mtgs_per_100 || 0)}</b></td>
+          <td class="num">${fmt(e.m.reply_rate || 0)}</td>
+          <td class="num">${fmt(e.m.li_accept_rate || 0)}</td>
+          <td class="num">${fmt(e.m.engaged_pct || 0)}</td>
+          <td><span class="verdict-pill verdict-${e.m.verdict}">${escapeHtml(e.m.verdict || '')}</span></td>
+        </tr>`).join('')}
+      </tbody></table>
+    </div>` : '';
+
   const cards = entries.map(([name, p]) => {
     const accts = p.unique_accounts || 0;
     const m = p.metrics || {};
@@ -321,8 +349,31 @@ function renderCampaignPanels() {
       mixed:   { cls: 'verdict-yellow', icon: '🟡', label: 'Mixed' },
       cold:    { cls: 'verdict-grey',  icon: '⚪', label: 'Cold' },
       kill:    { cls: 'verdict-red',   icon: '🔴', label: 'Kill candidate' },
+      stalled: { cls: 'verdict-yellow',icon: '🟠', label: 'Stalled' },
     };
     const v = verdictMap[m.verdict] || verdictMap.cold;
+    const isDeal = !!m.is_deal_list;
+    // Sparkline (8 weeks of signal counts)
+    const spark = m.sparkline_8w || [];
+    const sparkMax = Math.max(1, ...spark);
+    const sparkBars = spark.map(n => {
+      const h = Math.round((n / sparkMax) * 100);
+      return `<span class="spark-bar" style="height:${h}%" title="${n}"></span>`;
+    }).join('');
+    // Top movers
+    const movers = m.top_movers || [];
+    const moversBlock = movers.length > 0 ? `
+      <div class="cc-movers">
+        <div class="cc-section-title">Top accounts moving · 30d</div>
+        <ul class="movers-list">
+          ${movers.map(mv => `<li class="mover-row" data-domain="${escapeHtml(mv.domain)}">
+            <span class="mover-co"><b>${escapeHtml(mv.company)}</b></span>
+            <span class="mover-stage stage-pill ${STAGE_CLASS[mv.stage] || ''}">${escapeHtml(mv.stage)}</span>
+            <span class="mover-tier">${escapeHtml(mv.tier || '')}</span>
+            <span class="mover-meta dim small">${escapeHtml(mv.last_signal_type || '')} · ${escapeHtml(mv.last_signal_date || '')}</span>
+          </li>`).join('')}
+        </ul>
+      </div>` : '';
     // Funnel mini-bars per stage
     const totalAtStages = Object.values(p.by_stage || {}).reduce((a,b)=>a+b, 0);
     const stageBars = stageOrder.map(st => {
@@ -384,40 +435,63 @@ function renderCampaignPanels() {
         </tr></thead><tbody>${acctRows}</tbody></table>`
       : '';
 
-    // Business-decision metrics replace the old generic counts
-    return `<div class="campaign-card">
+    // KPI strip: differs for deal-stage vs cold lists
+    const kpiBlock = isDeal ? `
+      <div class="cc-stats">
+        <div class="cc-stat"><span class="cc-big">${fmt(m.meetings_30d || 0)}</span><span class="cc-lbl">meetings · 30d</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.mtgs_per_100 || 0)}</span><span class="cc-lbl">mtgs / 100</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.engaged_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">engaged+ rate</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.sdr_coverage_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">SDR coverage</span></div>
+      </div>` : `
+      <div class="cc-stats">
+        <div class="cc-stat"><span class="cc-big">${fmt(m.reply_rate || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">email reply<br><span class="dim">${fmt(m.email_replied_30d||0)}/${fmt(m.email_sent_30d||0)}</span></span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.li_accept_rate || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">LI accept<br><span class="dim">${fmt(m.li_replied_30d||0)}/${fmt(m.li_sent_30d||0)}</span></span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.mtgs_per_100 || 0)}</span><span class="cc-lbl">mtgs / 100</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.engaged_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">engaged+ rate</span></div>
+      </div>`;
+
+    const rankBadge = (m.rank_mtgs_per_100 && m.rank_total)
+      ? `<span class="rank-badge">#${m.rank_mtgs_per_100} of ${m.rank_total}</span>`
+      : '';
+
+    return `<div class="campaign-card${isDeal ? ' is-deal' : ''}">
       <div class="cc-head">
-        <div class="cc-name">${escapeHtml(name)}</div>
+        <div class="cc-name">${escapeHtml(name)} ${rankBadge}</div>
         <div class="cc-verdict ${v.cls}" title="${escapeHtml(m.verdict_reason || '')}">
           ${v.icon} ${v.label}
         </div>
       </div>
       ${m.verdict_reason ? `<div class="cc-verdict-reason dim small">${escapeHtml(m.verdict_reason)}</div>` : ''}
       ${conflictBanner}
-      <div class="cc-stats">
-        <div class="cc-stat"><span class="cc-big">${fmt(m.meetings_30d || 0)}</span><span class="cc-lbl">meetings · 30d</span></div>
-        <div class="cc-stat"><span class="cc-big">${fmt(m.engaged_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">engaged+ rate</span></div>
-        <div class="cc-stat"><span class="cc-big">${fmt(m.sdr_coverage_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">SDR coverage</span></div>
-        <div class="cc-stat"><span class="cc-big">${fmt(m.mtgs_per_100 || 0)}</span><span class="cc-lbl">mtgs / 100 accts</span></div>
-      </div>
+      ${kpiBlock}
       <div class="cc-meta dim small">
-        ${fmt(accts)} accounts · ${fmt(p.unique_contacts || 0)} contacts
+        ${fmt(accts)} accounts · ${fmt(p.unique_contacts || 0)} contacts ·
+        ${fmt(m.calls_attempted_30d || 0)} calls (${fmt(m.connect_rate || 0)}% connect) ·
+        ${fmt(m.multithread_rate || 0)}% multi-thread
       </div>
-      <div class="cc-stages">${stageBars}</div>
-      ${topTypes ? `<div class="cc-types">${topTypes}</div>` : ''}
-      ${acctTable}
+      <div class="cc-spark-row">
+        <span class="cc-spark-lbl dim small">Activity · 8w</span>
+        <div class="sparkline">${sparkBars}</div>
+      </div>
+      ${moversBlock}
+      <details class="cc-details">
+        <summary class="dim small">Funnel breakdown · signal mix · accounts</summary>
+        <div class="cc-stages">${stageBars}</div>
+        ${topTypes ? `<div class="cc-types">${topTypes}</div>` : ''}
+        ${acctTable}
+      </details>
     </div>`;
   }).join('');
   // Wire row clicks
   setTimeout(() => {
-    grid.querySelectorAll('.campaign-card .acct-row').forEach(row => {
+    grid.querySelectorAll('.campaign-card .acct-row, .campaign-card .mover-row').forEach(row => {
       row.addEventListener('click', () => {
         const dom = row.dataset.domain;
         if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
       });
     });
   }, 0);
-  grid.innerHTML = cards || '<div class="dim small">No campaign data yet.</div>';
+  grid.innerHTML = (compareStrip + (cards || '<div class="dim small">No campaign data yet.</div>'));
 }
 
 // ============= MEETINGS BOOKED =============
