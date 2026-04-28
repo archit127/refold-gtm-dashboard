@@ -165,8 +165,12 @@ h2 { font-size: 18px; }
 
 .sdr-action-table th { font-size: 11px; }
 .sdr-action-table td { font-size: 13px; vertical-align: top; }
-.sdr-action-table .why-cell { color: var(--ink); font-weight: 400; max-width: 280px; }
-.sdr-action-table .angle-cell { max-width: 240px; }
+.sdr-action-table .why-cell { color: var(--ink); font-weight: 400; max-width: 240px; }
+.sdr-action-table .angle-cell { max-width: 200px; }
+.sdr-action-table .past-cell {
+  max-width: 220px; font-size: 12px; line-height: 1.4;
+}
+.sdr-action-table .past-cell b { color: var(--gold); font-weight: 500; }
 
 .tier-pill {
   font-family: 'JetBrains Mono', monospace;
