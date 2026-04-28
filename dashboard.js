@@ -99,22 +99,163 @@ async function load() {
   document.getElementById('generated-at').textContent =
     'Updated ' + formatTime(DATA.generated_at);
   wireWindowPills();
+  wireTabs();
   renderAll();
 }
 
 function renderAll() {
+  // Overview
   renderKPIs();
   renderMovement();
   renderFunnel();
   renderTopOpps();
-  renderMeetings();
-  renderStalled();
-  renderCampaignPanels();
-  renderSdrPanels();
-  renderBySrcCamp();
-  renderNotes();
   renderStagePanel();
   renderWindowMeta();
+  // SDR action
+  renderSdrAction();
+  // Campaigns
+  renderCampaignPanels();
+  // Meetings
+  renderMeetings();
+  renderStalled();
+}
+
+// ============= TAB NAV =============
+let SELECTED_TAB = 'overview';
+function wireTabs() {
+  const persisted = localStorage.getItem('dashboard:tab');
+  if (persisted && ['overview','sdr','campaigns','meetings'].includes(persisted)) {
+    SELECTED_TAB = persisted;
+  }
+  applyTab();
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      SELECTED_TAB = t.dataset.tab;
+      localStorage.setItem('dashboard:tab', SELECTED_TAB);
+      applyTab();
+    });
+  });
+}
+function applyTab() {
+  document.querySelectorAll('.tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.tab === SELECTED_TAB));
+  document.querySelectorAll('.tab-panel').forEach(p =>
+    p.hidden = p.dataset.panel !== SELECTED_TAB);
+  // scroll to top on tab change
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+// ============= SDR ACTION VIEW =============
+// Per-SDR card with their target list, AE shield, top accounts to call.
+// Sources: campaign_panels (one panel per SDR-focus tag).
+function renderSdrAction() {
+  const wrap = document.getElementById('sdr-action-grid');
+  if (!wrap) return;
+  const panels = DATA.campaign_panels || {};
+
+  // Pick out SDR-focused panels by name prefix
+  const sdrPanels = Object.entries(panels).filter(([name]) =>
+    name.startsWith('Tejas') || name.startsWith('Mani') || name.startsWith('Maajid')
+  );
+
+  if (sdrPanels.length === 0) {
+    wrap.innerHTML = '<div class="dim small">No SDR target lists ingested yet.</div>';
+    return;
+  }
+
+  wrap.innerHTML = sdrPanels.map(([name, p]) => {
+    const accts = p.accounts_list || [];
+    const conflicts = p.ae_conflicts || [];
+    const actionable = accts.filter(a => !a.ae_engaged);
+    const top = actionable.slice(0, 15);
+
+    // Funnel breakdown — key stages only
+    const stages = p.by_stage || {};
+    const stageLine = ['Engaged','SDR Contacted','Opportunity','SQL']
+      .map(s => stages[s] ? `<span class="kbit"><b>${stages[s]}</b> ${s}</span>` : '')
+      .filter(Boolean).join(' · ');
+
+    const rows = top.map(a => {
+      const why = whyNow(a);
+      const angle = outreachAngle(a);
+      return `<tr class="acct-row" data-domain="${escapeHtml(a.domain)}">
+        <td><b>${escapeHtml(a.company)}</b><div class="dim mono small">${escapeHtml(a.domain)}</div></td>
+        <td><span class="tier-pill tier-${escapeHtml(a.tier)}">${escapeHtml((a.tier || '').replace('TIER_', 'T').replace('_', ' '))}</span></td>
+        <td class="num"><b>${a.priority_score}</b></td>
+        <td>${escapeHtml(a.stage || '—')}</td>
+        <td class="why-cell">${escapeHtml(why)}</td>
+        <td class="angle-cell dim small">${escapeHtml(angle)}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="sdr-action-card">
+      <div class="sdr-action-head">
+        <h3>${escapeHtml(name)}</h3>
+        <div class="sdr-action-stats">
+          <span class="kbit"><b>${p.unique_accounts || 0}</b> accounts</span>
+          <span class="kbit ok"><b>${actionable.length}</b> actionable</span>
+          ${conflicts.length > 0 ? `<span class="kbit warn"><b>${conflicts.length}</b> 🛑 AE-engaged</span>` : ''}
+        </div>
+        ${stageLine ? `<div class="sdr-action-stages">${stageLine}</div>` : ''}
+      </div>
+      ${conflicts.length > 0 ? `<details class="ae-shield-collapsible">
+        <summary>🛑 ${conflicts.length} AE-engaged — skip these</summary>
+        <ul class="ae-shield-list">
+          ${conflicts.slice(0, 12).map(c =>
+            `<li><b>${escapeHtml(c.company)}</b> · <span class="dim">${escapeHtml(c.detail)}</span></li>`
+          ).join('')}
+          ${conflicts.length > 12 ? `<li class="dim">+${conflicts.length - 12} more</li>` : ''}
+        </ul>
+      </details>` : ''}
+      <table class="account-table sdr-action-table">
+        <thead><tr>
+          <th>Account</th><th>Tier</th><th class="num">Score</th><th>Stage</th><th>Why now</th><th>What to talk about</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" class="dim small">No actionable accounts after AE-shield. Sync with Tejas/Mani on next list.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  // Wire row clicks
+  wrap.querySelectorAll('.acct-row').forEach(row =>
+    row.addEventListener('click', () => {
+      const dom = row.dataset.domain;
+      if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
+    })
+  );
+}
+
+// Compose a "why now" string from recent_signals_7d (truncated, prioritised).
+function whyNow(a) {
+  if (a.ae_engaged) return 'AE handling — skip';
+  const s = a.recent_signals || '';
+  if (!s) {
+    if ((a.priority_score || 0) >= 50) return 'High priority score';
+    if (a.stage === 'Engaged' || a.stage === 'Aware') return 'In motion, no recent signals';
+    return 'Cold — research first';
+  }
+  // Take the most-distinctive signals (skip generic email_open noise)
+  const parts = s.split(',').map(x => x.trim());
+  const high = parts.filter(p =>
+    /meeting_booked|email_reply|call_connected|funding_raised|new_hire|score_delta|tech_stack_change|icp_score_jump/i.test(p)
+  );
+  return (high.length ? high : parts).slice(0, 2).join(', ');
+}
+
+// Suggest a conversation angle based on stage + signals.
+function outreachAngle(a) {
+  const s = a.recent_signals || '';
+  if (/meeting_booked/i.test(s)) return 'Reference recent meeting — re-engage';
+  if (/email_reply/i.test(s))   return 'Respond to reply — book demo';
+  if (/funding_raised/i.test(s)) return 'Lead w/ funding congrats + use case';
+  if (/new_hire/i.test(s) || /job_promotion/i.test(s)) return 'New stakeholder — intro Refold';
+  if (/tech_stack_change/i.test(s)) return 'Stack change = integration pain';
+  if (/score_delta/i.test(s) || /icp_score_jump/i.test(s)) return 'Recotap signal up — they\'re looking';
+  if (a.stage === 'Engaged') return 'Multi-thread — try second persona';
+  if (a.stage === 'SDR Contacted') return 'Follow up — try call + LI';
+  if (a.stage === 'Opportunity') return 'Push for next meeting';
+  if (a.stage === 'Cold' || !a.stage) return 'Cold open — lead w/ pain hypothesis';
+  return 'Standard outreach';
 }
 
 // ============= CAMPAIGN DEEP-DIVE PANELS =============
