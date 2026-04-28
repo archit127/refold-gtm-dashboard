@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="dashboard.css?v=21">
+<link rel="stylesheet" href="dashboard.css?v=22">
 </head>
 <body>
 
@@ -87,30 +87,18 @@
     <div id="account-detail" class="account-detail" hidden></div>
   </section>
 
-  <div class="grid-2">
-    <section class="card">
-      <div class="card-head">
-        <h2>Top engaged</h2>
-        <div class="dim small">Showing signs of need</div>
-      </div>
-      <div id="top-engaged-table"></div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>Top SDR-contacted</h2>
-        <div class="dim small">Touched, awaiting response</div>
-      </div>
-      <div id="top-sdr-table"></div>
-    </section>
-  </div>
-
   <section class="card">
     <div class="card-head">
-      <h2>Active opportunities</h2>
-      <div class="dim small">In 2-way conversation</div>
+      <h2>Top accounts in motion</h2>
+      <div class="dim small">Sorted by committee + score · click any row to drill in</div>
     </div>
-    <div id="top-opp-table"></div>
+    <div class="stage-tabs" id="top-stage-tabs">
+      <button class="stage-tab active" data-stage="Engaged">Engaged <span class="count" id="cnt-Engaged">0</span></button>
+      <button class="stage-tab" data-stage="SDR Contacted">SDR Contacted <span class="count" id="cnt-SDR Contacted">0</span></button>
+      <button class="stage-tab" data-stage="Opportunity">Opportunity <span class="count" id="cnt-Opportunity">0</span></button>
+      <button class="stage-tab" data-stage="SQL">SQL <span class="count" id="cnt-SQL">0</span></button>
+    </div>
+    <div id="top-stage-table"></div>
   </section>
 
 </section>
@@ -159,6 +147,6 @@
 
 </main>
 
-<script src="dashboard.js?v=21"></script>
+<script src="dashboard.js?v=22"></script>
 </body>
 </html>

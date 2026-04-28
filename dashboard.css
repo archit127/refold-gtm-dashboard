@@ -188,9 +188,87 @@ h2 { font-size: 18px; }
   border-radius: 3px; letter-spacing: 0.02em;
   background: oklch(0.22 0.02 250); color: var(--ink-mute);
 }
-.tier-pill.tier-TIER_1_CORE   { background: oklch(0.28 0.06 75); color: oklch(0.92 0.05 75); }
+.tier-pill.tier-TIER_1_CORE     { background: oklch(0.28 0.06 75);  color: oklch(0.92 0.05 75); }
 .tier-pill.tier-TIER_2_ADJACENT { background: oklch(0.26 0.04 230); color: oklch(0.86 0.04 230); }
 .tier-pill.tier-TIER_3_PLATFORM { background: oklch(0.22 0.02 250); color: var(--ink-mute); }
+.tier-pill.tier-TIER_4_MINIMAL  { background: oklch(0.20 0.01 250); color: oklch(0.55 0.01 250); }
+
+/* Role pills — meeting "booked by" */
+.role-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; padding: 2px 7px; border-radius: 3px;
+  letter-spacing: 0.02em; white-space: nowrap;
+}
+.role-pill.role-sdr   { background: oklch(0.26 0.06 145); color: oklch(0.86 0.10 145); }
+.role-pill.role-ae    { background: oklch(0.26 0.05 35);  color: oklch(0.86 0.10 35);  }
+.role-pill.role-other { background: oklch(0.22 0.02 250); color: var(--ink-mute); }
+
+/* Stage tabs — Overview "Top accounts in motion" */
+.stage-tabs {
+  display: flex; gap: 4px; margin: 6px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.stage-tab {
+  background: transparent; border: 0; color: var(--ink-mute);
+  font-family: 'Geist', sans-serif; font-size: 13px; font-weight: 500;
+  padding: 8px 14px; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  letter-spacing: -0.005em;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.stage-tab:hover { color: var(--ink); }
+.stage-tab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+.stage-tab .count {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; padding: 1px 6px; border-radius: 8px;
+  background: oklch(0.20 0.02 250); color: var(--ink-mute);
+  margin-left: 6px;
+}
+.stage-tab.active .count {
+  background: oklch(0.30 0.06 75); color: oklch(0.92 0.05 75);
+}
+
+/* Verdict pills — Campaigns */
+.cc-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 12px;
+}
+.cc-verdict {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; padding: 4px 9px; border-radius: 4px;
+  white-space: nowrap; cursor: help;
+  letter-spacing: 0.02em; flex-shrink: 0;
+}
+.cc-verdict.verdict-green  { background: oklch(0.24 0.06 145); color: oklch(0.85 0.12 145); }
+.cc-verdict.verdict-yellow { background: oklch(0.28 0.08 80);  color: oklch(0.88 0.13 80);  }
+.cc-verdict.verdict-red    { background: oklch(0.26 0.10 25);  color: oklch(0.85 0.13 25);  }
+.cc-verdict.verdict-grey   { background: oklch(0.22 0.02 250); color: var(--ink-mute); }
+.cc-verdict-reason { margin: -8px 0 4px; }
+.cc-stat { display: flex; flex-direction: column; gap: 2px; }
+.cc-pct { font-size: 14px; opacity: 0.7; margin-left: 2px; }
+.cc-meta { padding: 4px 0 0; }
+
+/* Inline filter dropdown (Meetings tab) */
+.inline-filter {
+  background: oklch(0.20 0.02 250);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 2px 6px; font-size: 11px;
+  font-family: 'Geist', sans-serif;
+}
+
+/* Last activity / Next action cells */
+.sdr-action-table .last-act-cell { max-width: 180px; }
+.sdr-action-table .next-action-cell {
+  max-width: 180px; font-size: 13px;
+  color: oklch(0.86 0.10 145);  /* greenish CTA */
+}
 .pill {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px; color: var(--ink-mute);

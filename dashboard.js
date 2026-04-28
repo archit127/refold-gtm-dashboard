@@ -180,22 +180,30 @@ function renderSdrAction() {
       const angle = outreachAngle(a);
       const pt = a.past_touches || {};
       const pb = a.playbook || {};
+      const la = a.last_activity || {};
       const ptCell = pt.last_date
         ? `<div><b>${escapeHtml(pt.last_by || '?')}</b> · ${escapeHtml(pt.last_date)}` +
           (pt.count > 1 ? ` <span class="dim">(${pt.count} total)</span>` : '') + `</div>` +
           `<div class="dim small">${escapeHtml(pt.last_note || '')}</div>`
         : '<span class="dim small">No past touches</span>';
+      // Last activity = any signal at all, regardless of who/what (Nooks/HS/Firefly/Leadgen)
+      const laCell = la.date
+        ? `<div class="mono small">${escapeHtml(la.date)} · <b>${escapeHtml(la.source || la.type)}</b></div>` +
+          (la.by ? `<div class="dim small">by ${escapeHtml(la.by)}</div>` : '')
+        : '<span class="dim small">—</span>';
+      const nextAction = nextActionFor(a);
       // Playbook overrides "what to talk about" if present (Mani's hand-curated note)
       const angleCell = pb.note
         ? `<div class="playbook-note">${escapeHtml(pb.note)}</div>`
         : `<span class="dim small">${escapeHtml(angle)}</span>`;
       return `<tr class="acct-row" data-domain="${escapeHtml(a.domain)}">
         <td><b>${escapeHtml(a.company)}</b><div class="dim mono small">${escapeHtml(a.domain)}</div></td>
-        <td><span class="tier-pill tier-${escapeHtml(a.tier)}">${escapeHtml((a.tier || '').replace('TIER_', 'T').replace('_', ' '))}</span></td>
+        <td>${tier_pill(a.tier)}</td>
         <td class="num"><b>${a.priority_score}</b></td>
         <td>${escapeHtml(a.stage || '—')}</td>
         <td class="past-cell">${ptCell}</td>
-        <td class="why-cell">${escapeHtml(why)}</td>
+        <td class="last-act-cell">${laCell}</td>
+        <td class="next-action-cell"><b>${escapeHtml(nextAction)}</b></td>
         <td class="angle-cell">${angleCell}</td>
       </tr>`;
     }).join('');
@@ -221,9 +229,10 @@ function renderSdrAction() {
       </details>` : ''}
       <table class="account-table sdr-action-table">
         <thead><tr>
-          <th>Account</th><th>Tier</th><th class="num">Score</th><th>Stage</th><th>Past touch</th><th>Why now</th><th>What to talk about</th>
+          <th>Account</th><th>Tier</th><th class="num">Score</th><th>Stage</th>
+          <th>Past touch</th><th>Last activity</th><th>Next action</th><th>What to talk about</th>
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" class="dim small">No actionable accounts after AE-shield. Sync with Tejas/Mani on next list.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="8" class="dim small">No actionable accounts after AE-shield. Sync with the SDR on next list.</td></tr>'}</tbody>
       </table>
     </div>`;
   }).join('');
@@ -254,6 +263,30 @@ function whyNow(a) {
   return (high.length ? high : parts).slice(0, 2).join(', ');
 }
 
+// Concrete next-action verb derived from stage + last activity recency.
+function nextActionFor(a) {
+  if (a.ae_engaged) return 'Skip — AE owns';
+  const la = a.last_activity || {};
+  const today = new Date();
+  let daysSince = 999;
+  if (la.date) {
+    const d = new Date(la.date + 'T00:00:00Z');
+    daysSince = Math.round((today - d) / 86400000);
+  }
+  // Recent reply / connect = high-priority follow-up
+  if (la.type === 'email_reply' && daysSince <= 7) return 'Reply now';
+  if (la.type === 'call_connected' && daysSince <= 7) return 'Send follow-up email';
+  if (la.type === 'meeting_booked' && daysSince <= 14) return 'Confirm + prep';
+  // Stage-based defaults
+  if (a.stage === 'Opportunity') return 'Push for next meeting';
+  if (a.stage === 'SDR Contacted') return 'Call + LinkedIn DM';
+  if (a.stage === 'Engaged')      return 'Multi-thread to 2nd persona';
+  if (a.stage === 'Aware')        return 'Send personalized email';
+  if (a.stage === 'Reached')      return 'Try a call';
+  if (a.stage === 'Cold' || !a.stage) return 'Cold open';
+  return 'Standard outreach';
+}
+
 // Suggest a conversation angle based on stage + signals.
 function outreachAngle(a) {
   const s = a.recent_signals || '';
@@ -276,15 +309,20 @@ function renderCampaignPanels() {
   if (!grid) return;
   const panels = DATA.campaign_panels || {};
   const stageOrder = DATA.stage_order || [];
-  const cards = Object.entries(panels).map(([name, p]) => {
+  // Filter out empty campaigns — they're noise on a manager view
+  const entries = Object.entries(panels).filter(([_, p]) =>
+    (p.unique_accounts || 0) > 0 || (p.signals_total || 0) > 0
+  );
+  const cards = entries.map(([name, p]) => {
     const accts = p.unique_accounts || 0;
-    if (accts === 0 && (p.signals_total || 0) === 0) {
-      // empty campaign — render dim placeholder
-      return `<div class="campaign-card empty">
-        <div class="cc-name">${escapeHtml(name)}</div>
-        <div class="dim small">No signals tagged with this campaign yet.</div>
-      </div>`;
-    }
+    const m = p.metrics || {};
+    const verdictMap = {
+      working: { cls: 'verdict-green', icon: '🟢', label: 'Working' },
+      mixed:   { cls: 'verdict-yellow', icon: '🟡', label: 'Mixed' },
+      cold:    { cls: 'verdict-grey',  icon: '⚪', label: 'Cold' },
+      kill:    { cls: 'verdict-red',   icon: '🔴', label: 'Kill candidate' },
+    };
+    const v = verdictMap[m.verdict] || verdictMap.cold;
     // Funnel mini-bars per stage
     const totalAtStages = Object.values(p.by_stage || {}).reduce((a,b)=>a+b, 0);
     const stageBars = stageOrder.map(st => {
@@ -346,14 +384,24 @@ function renderCampaignPanels() {
         </tr></thead><tbody>${acctRows}</tbody></table>`
       : '';
 
+    // Business-decision metrics replace the old generic counts
     return `<div class="campaign-card">
-      <div class="cc-name">${escapeHtml(name)}</div>
+      <div class="cc-head">
+        <div class="cc-name">${escapeHtml(name)}</div>
+        <div class="cc-verdict ${v.cls}" title="${escapeHtml(m.verdict_reason || '')}">
+          ${v.icon} ${v.label}
+        </div>
+      </div>
+      ${m.verdict_reason ? `<div class="cc-verdict-reason dim small">${escapeHtml(m.verdict_reason)}</div>` : ''}
       ${conflictBanner}
       <div class="cc-stats">
-        <div><span class="cc-big">${fmt(accts)}</span><span class="cc-lbl">accounts</span></div>
-        <div><span class="cc-big">${fmt(p.unique_contacts || 0)}</span><span class="cc-lbl">contacts</span></div>
-        <div><span class="cc-big">${fmt(p.signals_30d || 0)}</span><span class="cc-lbl">signals · 30d</span></div>
-        <div><span class="cc-big">${fmt(p.signals_total || 0)}</span><span class="cc-lbl">signals total</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.meetings_30d || 0)}</span><span class="cc-lbl">meetings · 30d</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.moved_engaged_plus_30d || 0)}</span><span class="cc-lbl">engaged+ · 30d</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.sdr_coverage_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">SDR coverage</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.signals_7d || 0)}</span><span class="cc-lbl">signals · 7d</span></div>
+      </div>
+      <div class="cc-meta dim small">
+        ${fmt(accts)} accounts · ${fmt(p.unique_contacts || 0)} contacts
       </div>
       <div class="cc-stages">${stageBars}</div>
       ${topTypes ? `<div class="cc-types">${topTypes}</div>` : ''}
@@ -373,45 +421,106 @@ function renderCampaignPanels() {
 }
 
 // ============= MEETINGS BOOKED =============
+let MEETINGS_SDR_FILTER = '';
 function renderMeetings() {
   const wrap = document.getElementById('meetings-table');
   if (!wrap) return;
   const wlabel = WINDOW_LABELS[SELECTED_WINDOW] || SELECTED_WINDOW;
   const lbl = document.getElementById('meetings-window-label');
   if (lbl) lbl.textContent = `· ${wlabel}`;
-  const list = ((DATA.meetings_list_by_window || {})[SELECTED_WINDOW]) || [];
-  const count = (DATA.meetings_by_window || {})[SELECTED_WINDOW] || 0;
+
+  const allLists = DATA.meetings_list_by_window || {};
+  let list = (allLists[SELECTED_WINDOW] || []).slice();
+  const winCount = (DATA.meetings_by_window || {})[SELECTED_WINDOW] || 0;
+  const allTime = (allLists['all_time'] || []);
+
+  // Empty-state fallback: show all-time when window has none
+  let usingFallback = false;
+  if (list.length === 0 && allTime.length > 0) {
+    list = allTime.slice(0, 10);
+    usingFallback = true;
+  }
+
+  // Build SDR filter options from "by" tag in details
+  const sdrSet = new Set();
+  for (const m of allTime) {
+    const tag = (m.title || '').match(/^\[(SDR|AE|CSM|OTHER)·([^\]]+)\]/);
+    if (tag && tag[1] === 'SDR') sdrSet.add(tag[2]);
+  }
+  const sdrOptions = ['', ...Array.from(sdrSet).sort()];
+  if (MEETINGS_SDR_FILTER) {
+    list = list.filter(m => (m.title || '').includes(`[SDR·${MEETINGS_SDR_FILTER}]`));
+  }
+
+  // Header meta + filter UI
   const meta = document.getElementById('meetings-meta');
   if (meta) {
-    meta.textContent = count === 0
-      ? 'No meetings booked in this window yet.'
-      : `${count} meeting${count === 1 ? '' : 's'} booked${list.length < count ? ` · showing latest ${list.length}` : ''}`;
+    let txt;
+    if (usingFallback) {
+      txt = `0 booked in ${wlabel} · showing latest ${list.length} all-time as fallback`;
+    } else if (winCount === 0) {
+      txt = 'No meetings booked.';
+    } else {
+      txt = `${winCount} meeting${winCount === 1 ? '' : 's'} booked` +
+            (list.length < winCount ? ` · showing latest ${list.length}` : '');
+    }
+    const filterUI = sdrSet.size > 0
+      ? ` · <select class="inline-filter" id="meetings-sdr-filter">` +
+        sdrOptions.map(o => `<option value="${escapeHtml(o)}"${o === MEETINGS_SDR_FILTER ? ' selected' : ''}>${o ? escapeHtml(o) : 'All SDRs'}</option>`).join('') +
+        `</select>`
+      : '';
+    meta.innerHTML = txt + filterUI;
   }
+
   if (list.length === 0) {
-    wrap.innerHTML = '<div class="dim small">Try a wider window — e.g. last 30d or YTD — to see meetings booked.</div>';
-    return;
-  }
-  const rows = list.map(m => `
-    <tr class="acct-row" data-domain="${escapeHtml(m.domain)}">
-      <td>${escapeHtml(m.date)}</td>
-      <td>${escapeHtml(m.company_name)}</td>
-      <td>${escapeHtml(m.tier || '')}</td>
-      <td>${escapeHtml(m.stage || '')}</td>
-      <td>${escapeHtml(m.contact || '')}</td>
-      <td>${escapeHtml(m.title || '')}</td>
-    </tr>`).join('');
-  wrap.innerHTML = `<table class="account-table">
-    <thead><tr>
-      <th>Date</th><th>Account</th><th>Tier</th><th>Current stage</th><th>Contact</th><th>Title</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
-  wrap.querySelectorAll('.acct-row').forEach(row => {
-    row.addEventListener('click', () => {
-      const dom = row.dataset.domain;
-      if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
+    wrap.innerHTML = '<div class="dim small">No meetings match the current filter.</div>';
+  } else {
+    const rows = list.map(m => {
+      // Strip the [SDR·Name] / [AE·Name] tag from title for display, surface as a separate column
+      const tag = (m.title || '').match(/^\[(SDR|AE|CSM|OTHER)·([^\]]+)\]\s*/);
+      const role = tag ? tag[1] : '';
+      const who = tag ? tag[2] : '';
+      const cleanTitle = tag ? m.title.slice(tag[0].length) : (m.title || '');
+      const roleClass = role === 'SDR' ? 'role-sdr' : role === 'AE' ? 'role-ae' : 'role-other';
+      return `<tr class="acct-row" data-domain="${escapeHtml(m.domain)}">
+        <td class="mono small">${escapeHtml(m.date)}</td>
+        <td><b>${escapeHtml(m.company_name)}</b></td>
+        <td>${tier_pill(m.tier)}</td>
+        <td>${who ? `<span class="role-pill ${roleClass}">${escapeHtml(role)}·${escapeHtml(who)}</span>` : '<span class="dim">—</span>'}</td>
+        <td>${escapeHtml(m.stage || '—')}</td>
+        <td class="dim small">${escapeHtml(cleanTitle)}</td>
+      </tr>`;
+    }).join('');
+    wrap.innerHTML = `<table class="account-table">
+      <thead><tr>
+        <th>Date</th><th>Account</th><th>Tier</th><th>Booked by</th><th>Stage</th><th>Title</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+    wrap.querySelectorAll('.acct-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const dom = row.dataset.domain;
+        if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
+      });
     });
-  });
+  }
+
+  // Wire SDR filter
+  const sel = document.getElementById('meetings-sdr-filter');
+  if (sel) {
+    sel.addEventListener('change', e => {
+      MEETINGS_SDR_FILTER = e.target.value || '';
+      renderMeetings();
+    });
+  }
+}
+
+// Shared tier-pill helper (cross-tab consistency — Step 5 polish too)
+function tier_pill(tier) {
+  if (!tier) return '<span class="dim small">—</span>';
+  const cls = (tier || '').replace(/[^A-Za-z0-9_]/g, '');
+  const label = (tier || '').replace('TIER_', 'T').replace('_', ' ');
+  return `<span class="tier-pill tier-${cls}">${escapeHtml(label)}</span>`;
 }
 
 // ============= COLD OUTBOUND SENDER PANELS =============
@@ -782,12 +891,38 @@ async function saveFeedbackToSupabase(scope, sk) {
   } catch (e) { console.warn('save failed:', e); alert('Save failed: ' + e.message); }
 }
 
-// ============= TOP ACCOUNTS — split by stage (clickable) =============
+// ============= TOP ACCOUNTS — single panel with stage tabs =============
+let TOP_STAGE = 'Engaged';
 function renderTopOpps() {
   const split = DATA.top_by_stage || {};
-  renderStageTopTable('top-engaged-table', 'Engaged',       split.Engaged || [],         'No accounts at Engaged yet.');
-  renderStageTopTable('top-sdr-table',     'SDR Contacted', split['SDR Contacted'] || [], 'No SDR-contacted accounts yet.');
-  renderStageTopTable('top-opp-table',     'Opportunity',   split.Opportunity || [],     'No Opportunity-stage accounts yet.');
+  const stages = ['Engaged', 'SDR Contacted', 'Opportunity', 'SQL'];
+
+  // Update counts on each tab
+  stages.forEach(s => {
+    const cnt = document.getElementById(`cnt-${s}`);
+    if (cnt) cnt.textContent = (split[s] || []).length;
+  });
+
+  // Wire tab clicks (idempotent)
+  document.querySelectorAll('#top-stage-tabs .stage-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.stage === TOP_STAGE);
+    if (!t.dataset.bound) {
+      t.dataset.bound = '1';
+      t.addEventListener('click', () => {
+        TOP_STAGE = t.dataset.stage;
+        renderTopOpps();
+      });
+    }
+  });
+
+  const empties = {
+    'Engaged': 'No accounts at Engaged yet.',
+    'SDR Contacted': 'No SDR-contacted accounts yet.',
+    'Opportunity': 'No Opportunity-stage accounts yet.',
+    'SQL': 'No SQL-stage accounts yet.',
+  };
+  renderStageTopTable('top-stage-table', TOP_STAGE,
+                      split[TOP_STAGE] || [], empties[TOP_STAGE]);
 }
 
 function renderStageTopTable(elId, stage, rows, emptyMsg) {
