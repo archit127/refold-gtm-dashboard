@@ -396,9 +396,9 @@ function renderCampaignPanels() {
       ${conflictBanner}
       <div class="cc-stats">
         <div class="cc-stat"><span class="cc-big">${fmt(m.meetings_30d || 0)}</span><span class="cc-lbl">meetings · 30d</span></div>
-        <div class="cc-stat"><span class="cc-big">${fmt(m.moved_engaged_plus_30d || 0)}</span><span class="cc-lbl">engaged+ · 30d</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.engaged_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">engaged+ rate</span></div>
         <div class="cc-stat"><span class="cc-big">${fmt(m.sdr_coverage_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">SDR coverage</span></div>
-        <div class="cc-stat"><span class="cc-big">${fmt(m.signals_7d || 0)}</span><span class="cc-lbl">signals · 7d</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.mtgs_per_100 || 0)}</span><span class="cc-lbl">mtgs / 100 accts</span></div>
       </div>
       <div class="cc-meta dim small">
         ${fmt(accts)} accounts · ${fmt(p.unique_contacts || 0)} contacts
