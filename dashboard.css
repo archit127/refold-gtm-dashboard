@@ -1382,3 +1382,83 @@ footer {
 .pa-drill-close:hover { color: var(--ink); border-color: var(--ink-dim); }
 
 .ch-table tr.ch-row:hover td { background: oklch(0.22 0.025 75 / 0.3); }
+
+/* ===== Campaign tab: clean attribution + SDR efforts ===== */
+.cc-clean-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px; padding: 1px 5px; border-radius: 6px;
+  background: oklch(0.30 0.10 145); color: oklch(0.92 0.10 145);
+  letter-spacing: 0.06em; vertical-align: middle;
+  margin-left: 4px;
+}
+.cc-raw-delta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; color: oklch(0.62 0.13 25);
+  display: inline-block; margin-top: 2px;
+}
+
+.cc-sdr-efforts {
+  border-top: 1px dashed var(--line-soft);
+  padding-top: 10px; margin-top: 4px;
+}
+.sdr-effort-table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+}
+.sdr-effort-table th {
+  text-align: left; padding: 4px 6px;
+  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-dim); border-bottom: 1px solid var(--line-soft);
+}
+.sdr-effort-table th.num, .sdr-effort-table td.num {
+  text-align: right; font-family: 'JetBrains Mono', monospace;
+}
+.sdr-effort-table td {
+  padding: 4px 6px; border-bottom: 1px solid var(--line-soft);
+}
+.sdr-effort-table tr:last-child td { border-bottom: 0; }
+.sdr-effort-table b { color: var(--gold); }
+
+.sdr-effort-summary {
+  grid-column: 1 / -1;
+}
+.sdr-effort-summary-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.sdr-effort-summary-table th {
+  text-align: left; padding: 8px;
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-dim); border-bottom: 1px solid var(--line-soft);
+}
+.sdr-effort-summary-table th.num, .sdr-effort-summary-table td.num {
+  text-align: right; font-family: 'JetBrains Mono', monospace;
+}
+.sdr-effort-summary-table td {
+  padding: 8px; border-bottom: 1px solid var(--line-soft);
+}
+.sdr-effort-summary-table tr.sdr-summary-row:hover td {
+  background: oklch(0.22 0.025 75 / 0.3);
+}
+.sdr-effort-summary-table b { color: var(--gold); }
+
+.sdr-summary-expand td {
+  background: oklch(0.18 0.018 250 / 0.6);
+  padding: 0 !important;
+}
+.sdr-camp-breakdown {
+  padding: 14px 18px;
+  border-left: 3px solid var(--gold-soft);
+}
+.sdr-camp-mix-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.sdr-camp-mix-table th {
+  text-align: left; padding: 6px 8px;
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-dim); border-bottom: 1px solid var(--line-soft);
+}
+.sdr-camp-mix-table th.num, .sdr-camp-mix-table td.num {
+  text-align: right; font-family: 'JetBrains Mono', monospace;
+}
+.sdr-camp-mix-table td {
+  padding: 5px 8px; border-bottom: 1px solid var(--line-soft);
+}

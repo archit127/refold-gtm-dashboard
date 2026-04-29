@@ -1010,15 +1010,50 @@ function renderCampaignPanels() {
       </div>`;
 
     // Outcomes row (HS deals) — shows business $ when present
+    // For agency campaigns, show CLEAN numbers + raw delta indicator
     const hasDeals = (m.pipeline_deals || 0) + (m.won_deals || 0) + (m.lost_deals || 0) > 0;
+    const showCleanLabel = m.attribution_clean;
+    const cleanLabel = showCleanLabel
+      ? `<span class="cc-clean-pill" title="Hygiene-applied: pre-existing deals & hard HS source tags excluded">CLEAN</span>`
+      : '';
+    const pipeRawDelta = (m.pipeline_amount_raw || 0) - (m.pipeline_amount || 0);
+    const wonRawDelta  = (m.won_amount_raw || 0)      - (m.won_amount || 0);
+    const dealsRawDelta = (m.pipeline_deals_raw || 0)  - (m.pipeline_deals || 0);
+    const wonDealsRawDelta = (m.won_deals_raw || 0)    - (m.won_deals || 0);
+    const subDelta = (raw, delta, currency) => {
+      if (!showCleanLabel || delta <= 0) return '';
+      return `<br><span class="dim cc-raw-delta" title="Raw (no hygiene): ${currency}${fmt(raw)}">−${currency}${fmt(delta)} stripped</span>`;
+    };
     const outcomesRow = `
       <div class="cc-stats cc-outcomes-stats">
-        <div class="cc-stat"><span class="cc-big">${fmt(m.pipeline_deals || 0)}</span><span class="cc-lbl">open deals<br><span class="dim">post-Disco</span></span></div>
-        <div class="cc-stat"><span class="cc-big">${m.pipeline_amount > 0 ? '$'+fmt(m.pipeline_amount) : '$0'}</span><span class="cc-lbl">pipeline $</span></div>
-        <div class="cc-stat"><span class="cc-big">${fmt(m.won_deals || 0)}</span><span class="cc-lbl">won deals<br><span class="dim">${fmt(m.win_rate || 0)}% win rate</span></span></div>
-        <div class="cc-stat"><span class="cc-big">${m.won_amount > 0 ? '$'+fmt(m.won_amount) : '$0'}</span><span class="cc-lbl">won $</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.pipeline_deals || 0)}</span><span class="cc-lbl">open deals ${cleanLabel}<br><span class="dim">post-Disco</span>${subDelta(m.pipeline_deals_raw, dealsRawDelta, '')}</span></div>
+        <div class="cc-stat"><span class="cc-big">${m.pipeline_amount > 0 ? '$'+fmt(m.pipeline_amount) : '$0'}</span><span class="cc-lbl">pipeline $${subDelta(m.pipeline_amount_raw, pipeRawDelta, '$')}</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.won_deals || 0)}</span><span class="cc-lbl">won deals<br><span class="dim">${fmt(m.win_rate || 0)}% win rate</span>${subDelta(m.won_deals_raw, wonDealsRawDelta, '')}</span></div>
+        <div class="cc-stat"><span class="cc-big">${m.won_amount > 0 ? '$'+fmt(m.won_amount) : '$0'}</span><span class="cc-lbl">won $${subDelta(m.won_amount_raw, wonRawDelta, '$')}</span></div>
       </div>`;
     const kpiBlock = tofuRow + outcomesRow;
+
+    // SDR efforts on this campaign (last 30d)
+    const sdrEfforts = m.sdr_efforts || {};
+    const sdrEffortRows = Object.entries(sdrEfforts)
+      .filter(([_, s]) => s.touches > 0)
+      .sort((a, b) => b[1].touches - a[1].touches)
+      .map(([sdr, s]) => `<tr>
+        <td><b>${escapeHtml(sdr)}</b></td>
+        <td class="num">${fmt(s.touches)}</td>
+        <td class="num">${fmt(s.calls)}</td>
+        <td class="num">${fmt(s.emails)}</td>
+        <td class="num">${fmt(s.li)}</td>
+        <td class="num">${fmt(s.replies)}</td>
+        <td class="num"><b>${fmt(s.meetings)}</b></td>
+      </tr>`).join('');
+    const sdrEffortsBlock = sdrEffortRows ? `
+      <div class="cc-sdr-efforts">
+        <div class="cc-section-title">SDR efforts · last 30d</div>
+        <table class="sdr-effort-table"><thead><tr>
+          <th>SDR</th><th class="num">Touches</th><th class="num">Calls</th><th class="num">Emails</th><th class="num">LI</th><th class="num">Replies</th><th class="num">Mtgs</th>
+        </tr></thead><tbody>${sdrEffortRows}</tbody></table>
+      </div>` : `<div class="cc-sdr-efforts"><div class="dim small">No SDR effort on this list in last 30d</div></div>`;
 
     const rankBadge = (m.rank_mtgs_per_100 && m.rank_total)
       ? `<span class="rank-badge">#${m.rank_mtgs_per_100} of ${m.rank_total}</span>`
@@ -1048,6 +1083,7 @@ function renderCampaignPanels() {
         <div class="sparkline">${sparkBars}</div>
       </div>
       ${moversBlock}
+      ${sdrEffortsBlock}
       <details class="cc-details">
         <summary class="dim small">Funnel breakdown · signal mix · accounts</summary>
         <div class="cc-stages">${stageBars}</div>
@@ -1065,7 +1101,70 @@ function renderCampaignPanels() {
       });
     });
   }, 0);
-  grid.innerHTML = (compareStrip + (cards || '<div class="dim small">No campaign data yet.</div>'));
+  // Top-level SDR Efforts summary (last 30d, across all campaigns)
+  const sdrSummary = DATA.sdr_efforts_summary || {};
+  const sdrSummaryEntries = Object.entries(sdrSummary).filter(([_, s]) => s.touches > 0);
+  const sdrSummaryStrip = sdrSummaryEntries.length > 0 ? `
+    <div class="sdr-effort-summary card">
+      <div class="card-head"><h2>SDR Effort breakdown · last 30d</h2>
+        <div class="dim small">Where each SDR is spending their time (across all campaigns) · click an SDR row to see their campaign mix</div>
+      </div>
+      <table class="sdr-effort-summary-table"><thead><tr>
+        <th>SDR</th><th class="num">Total touches</th><th class="num">Calls</th>
+        <th class="num">Emails</th><th class="num">LinkedIn</th>
+        <th class="num">Replies</th><th class="num">Meetings booked</th>
+        <th class="num">Campaigns active</th>
+      </tr></thead><tbody>
+      ${sdrSummaryEntries.map(([sdr, s]) => `<tr class="sdr-summary-row" data-sdr="${escapeAttr(sdr)}">
+        <td><b>${escapeHtml(sdr)}</b></td>
+        <td class="num"><b>${fmt(s.touches)}</b></td>
+        <td class="num">${fmt(s.calls)}</td>
+        <td class="num">${fmt(s.emails)}</td>
+        <td class="num">${fmt(s.li)}</td>
+        <td class="num">${fmt(s.replies)}</td>
+        <td class="num"><b>${fmt(s.meetings)}</b></td>
+        <td class="num">${(s.campaigns || []).length}</td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div>` : '';
+
+  grid.innerHTML = (sdrSummaryStrip + compareStrip + (cards || '<div class="dim small">No campaign data yet.</div>'));
+
+  // Wire SDR summary row clicks → expand to show campaign breakdown
+  grid.querySelectorAll('.sdr-summary-row').forEach(row => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => {
+      const sdr = row.dataset.sdr;
+      // Toggle existing expansion
+      const next = row.nextElementSibling;
+      if (next && next.classList.contains('sdr-summary-expand')) {
+        next.remove(); return;
+      }
+      // Remove other expansions
+      grid.querySelectorAll('.sdr-summary-expand').forEach(el => el.remove());
+      const data = sdrSummary[sdr];
+      if (!data) return;
+      const tr = document.createElement('tr');
+      tr.className = 'sdr-summary-expand';
+      tr.innerHTML = `<td colspan="8"><div class="sdr-camp-breakdown">
+        <div class="cc-section-title">${escapeHtml(sdr)} · campaign mix (30d)</div>
+        ${(data.campaigns || []).length === 0 ? '<div class="dim small">No campaign-attributed touches.</div>' :
+          `<table class="sdr-camp-mix-table"><thead><tr>
+            <th>Campaign</th><th class="num">Touches</th><th class="num">Calls</th>
+            <th class="num">Emails</th><th class="num">LI</th><th class="num">Replies</th><th class="num">Mtgs</th>
+          </tr></thead><tbody>${data.campaigns.map(c => `<tr>
+            <td>${escapeHtml(c.campaign)}</td>
+            <td class="num">${fmt(c.touches)}</td>
+            <td class="num">${fmt(c.calls)}</td>
+            <td class="num">${fmt(c.emails)}</td>
+            <td class="num">${fmt(c.li)}</td>
+            <td class="num">${fmt(c.replies)}</td>
+            <td class="num"><b>${fmt(c.meetings)}</b></td>
+          </tr>`).join('')}</tbody></table>`}
+      </div></td>`;
+      row.after(tr);
+    });
+  });
 }
 
 // ============= MEETINGS BOOKED =============
