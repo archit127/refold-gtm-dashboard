@@ -124,6 +124,9 @@ function renderAll() {
   renderPipelineAnalytics();
   renderChannelAttribution();
   renderAttributionHygiene();
+  // Signals Library + Settings
+  renderSignalLibrary();
+  renderSettings();
 }
 
 // ============= PIPELINE ANALYTICS =============
@@ -598,11 +601,257 @@ function renderAttributionHygiene() {
   wrap.innerHTML = ruleLegend + `<div class="hygiene-grid">${cards}</div>`;
 }
 
+// ============= SIGNALS LIBRARY =============
+let SIGLIB_FILTER = { search: '', dropped: false, lowCoverage: false };
+
+function renderSignalLibrary() {
+  const wrap = document.getElementById('signal-library-table');
+  if (!wrap) return;
+  const lib = DATA.signal_library || [];
+  if (!lib.length) {
+    wrap.innerHTML = '<div class="dim small">No signal data yet.</div>';
+    return;
+  }
+
+  // Filter bar wiring (idempotent)
+  const search = document.getElementById('sig-search');
+  const dropped = document.getElementById('sig-only-dropped');
+  const lowcov  = document.getElementById('sig-only-zero-coverage');
+  if (search && !search._wired) {
+    search._wired = true;
+    search.value = SIGLIB_FILTER.search;
+    search.addEventListener('input', () => {
+      SIGLIB_FILTER.search = search.value.toLowerCase().trim();
+      renderSignalLibrary();
+    });
+  }
+  if (dropped && !dropped._wired) {
+    dropped._wired = true;
+    dropped.checked = SIGLIB_FILTER.dropped;
+    dropped.addEventListener('change', () => {
+      SIGLIB_FILTER.dropped = dropped.checked;
+      renderSignalLibrary();
+    });
+  }
+  if (lowcov && !lowcov._wired) {
+    lowcov._wired = true;
+    lowcov.checked = SIGLIB_FILTER.lowCoverage;
+    lowcov.addEventListener('change', () => {
+      SIGLIB_FILTER.lowCoverage = lowcov.checked;
+      renderSignalLibrary();
+    });
+  }
+
+  let filtered = lib;
+  if (SIGLIB_FILTER.search) {
+    filtered = filtered.filter(s => s.type.toLowerCase().includes(SIGLIB_FILTER.search));
+  }
+  if (SIGLIB_FILTER.dropped) filtered = filtered.filter(s => s.tried_and_dropped);
+  if (SIGLIB_FILTER.lowCoverage) filtered = filtered.filter(s => s.tam_coverage_pct < 5);
+
+  const rows = filtered.map(s => `<tr class="sig-row" data-type="${escapeAttr(s.type)}">
+    <td><b>${escapeHtml(s.type)}</b>${s.tried_and_dropped ? ' <span class="sig-flag-dropped" title="Tried then dropped — high accounts but no recent activity">⚠</span>' : ''}</td>
+    <td class="num">${fmt(s.weight)}</td>
+    <td class="num">${fmt(s.count_total)}</td>
+    <td class="num">${fmt(s.count_30d)}</td>
+    <td class="num">${fmt(s.unique_accounts)}</td>
+    <td class="num">${fmt(s.unique_contacts)}</td>
+    <td class="num">${s.tam_coverage_pct}%</td>
+    <td class="dim small">${escapeHtml(s.first_seen || '—')}</td>
+    <td class="dim small">${escapeHtml(s.last_seen || '—')}</td>
+  </tr>`).join('');
+
+  wrap.innerHTML = `<table class="signal-lib-table"><thead><tr>
+    <th>Signal type</th>
+    <th class="num" title="Current weight in scoring config">Weight</th>
+    <th class="num">Total</th>
+    <th class="num">30d</th>
+    <th class="num">Accounts</th>
+    <th class="num">Contacts</th>
+    <th class="num">TAM %</th>
+    <th>First seen</th>
+    <th>Last seen</th>
+  </tr></thead><tbody>${rows}</tbody></table>
+  <div class="dim small">${filtered.length} of ${lib.length} signal types shown</div>`;
+
+  // Wire row clicks → drill panel
+  wrap.querySelectorAll('tr.sig-row').forEach(row => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => {
+      const sig = lib.find(x => x.type === row.dataset.type);
+      if (!sig) return;
+      // Remove existing drill
+      wrap.querySelectorAll('.sig-drill').forEach(el => el.remove());
+      const drill = document.createElement('div');
+      drill.className = 'sig-drill';
+      const samples = sig.samples || [];
+      drill.innerHTML = `<div class="pa-drill-head">
+          <b>${escapeHtml(sig.type)}</b> · weight ${sig.weight} · ${sig.unique_accounts} accounts ·
+          ${sig.tam_coverage_pct}% TAM · last seen ${escapeHtml(sig.last_seen || '—')}
+          <button class="pa-drill-close">×</button>
+        </div>
+        ${samples.length === 0
+          ? '<div class="dim small">No sample signals captured.</div>'
+          : `<table class="up-dd-table"><thead><tr>
+              <th>Date</th><th>Company</th><th>Contact</th><th>SDR</th><th>Source</th><th>Details</th>
+            </tr></thead><tbody>${samples.map(sm => `<tr data-domain="${escapeAttr(sm.domain)}">
+              <td class="dim small">${escapeHtml(sm.date)}</td>
+              <td><b>${escapeHtml(sm.company || sm.domain)}</b></td>
+              <td class="dim small">${escapeHtml(sm.contact_email || '')}</td>
+              <td class="dim small">${escapeHtml(sm.sdr_owner || '')}</td>
+              <td class="dim small">${escapeHtml(sm.source || sm.campaign || '')}</td>
+              <td class="dim small">${escapeHtml(sm.details || '')}</td>
+            </tr>`).join('')}</tbody></table>`}`;
+      row.after(drill);
+      drill.querySelector('.pa-drill-close')?.addEventListener('click', () => drill.remove());
+      drill.querySelectorAll('tr[data-domain]').forEach(r => {
+        r.style.cursor = 'pointer';
+        r.addEventListener('click', () => openAccountDetail(r.dataset.domain));
+      });
+      drill.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+}
+
+// ============= SETTINGS TAB (scoring config) =============
+function _settingsLocalKey() { return 'dashboard:scoring_overrides'; }
+function getEffectiveScoringConfig() {
+  // Server config from DATA + local overrides
+  const server = DATA.scoring_config || { weights: {}, thresholds: {}, window_days: 30 };
+  let overrides = {};
+  try { overrides = JSON.parse(localStorage.getItem(_settingsLocalKey()) || '{}'); }
+  catch (e) { overrides = {}; }
+  return {
+    weights:    { ...(server.weights || {}),    ...(overrides.weights || {}) },
+    thresholds: { ...(server.thresholds || {}), ...(overrides.thresholds || {}) },
+    window_days: overrides.window_days ?? server.window_days ?? 30,
+    server_source: server.source,
+    last_loaded: server.last_loaded,
+  };
+}
+
+function renderSettings() {
+  const status = document.getElementById('settings-status');
+  if (!status) return;
+  const cfg = getEffectiveScoringConfig();
+  let overrides = {};
+  try { overrides = JSON.parse(localStorage.getItem(_settingsLocalKey()) || '{}'); }
+  catch (e) {}
+  const overrideCount = Object.keys(overrides.weights || {}).length +
+                        Object.keys(overrides.thresholds || {}).length +
+                        (overrides.window_days != null ? 1 : 0);
+  status.innerHTML = `<span class="dim small">Loaded from <code>${escapeHtml(cfg.server_source || 'defaults')}</code> · last sync ${escapeHtml(cfg.last_loaded || '—')}</span>` +
+    (overrideCount > 0 ? `<span class="settings-override-pill">${overrideCount} local overrides</span>` : '');
+
+  // Thresholds
+  const thresEl = document.getElementById('settings-thresholds');
+  thresEl.innerHTML = ['T1', 'T2', 'T3'].map(t => `<label class="thresh-row">
+    <span class="thresh-key">${t}</span>
+    <input type="number" data-thresh="${t}" value="${cfg.thresholds[t] ?? ''}" step="1" />
+    <span class="dim small">score ≥ this → ${t}</span>
+  </label>`).join('');
+
+  // Window
+  const winEl = document.getElementById('settings-window-days');
+  if (winEl) winEl.value = cfg.window_days;
+
+  // Weights — sorted by current weight desc, then by signal count from library
+  const lib = DATA.signal_library || [];
+  const libByType = Object.fromEntries(lib.map(x => [x.type, x]));
+  const allTypes = new Set([...Object.keys(cfg.weights), ...lib.map(x => x.type)]);
+  const sorted = [...allTypes].sort((a, b) => {
+    const wA = cfg.weights[a] || 0, wB = cfg.weights[b] || 0;
+    if (wA !== wB) return wB - wA;
+    const cA = libByType[a]?.count_total || 0, cB = libByType[b]?.count_total || 0;
+    return cB - cA;
+  });
+  const weightsEl = document.getElementById('settings-weights');
+  weightsEl.innerHTML = `<table class="settings-weight-table"><thead><tr>
+    <th>Signal type</th><th class="num">Weight</th><th class="num">Count (30d)</th><th class="num">Accounts</th><th>Last seen</th>
+  </tr></thead><tbody>${sorted.map(t => {
+    const libRow = libByType[t] || {};
+    const w = cfg.weights[t] ?? 0;
+    return `<tr><td><code>${escapeHtml(t)}</code></td>
+      <td class="num"><input type="number" class="weight-input" data-type="${escapeAttr(t)}" value="${w}" min="0" max="50" step="1" /></td>
+      <td class="num">${fmt(libRow.count_30d || 0)}</td>
+      <td class="num">${fmt(libRow.unique_accounts || 0)}</td>
+      <td class="dim small">${escapeHtml(libRow.last_seen || '—')}</td></tr>`;
+  }).join('')}</tbody></table>`;
+
+  // Wire actions (idempotent — only first time)
+  const saveBtn = document.getElementById('settings-save');
+  const exportBtn = document.getElementById('settings-export');
+  const resetBtn = document.getElementById('settings-reset');
+  const exportOut = document.getElementById('settings-export-out');
+
+  if (saveBtn && !saveBtn._wired) {
+    saveBtn._wired = true;
+    saveBtn.addEventListener('click', () => {
+      const ov = { weights: {}, thresholds: {} };
+      document.querySelectorAll('.weight-input').forEach(i => {
+        const v = parseFloat(i.value);
+        if (!isNaN(v)) ov.weights[i.dataset.type] = v;
+      });
+      document.querySelectorAll('input[data-thresh]').forEach(i => {
+        const v = parseFloat(i.value);
+        if (!isNaN(v)) ov.thresholds[i.dataset.thresh] = v;
+      });
+      const wd = parseInt(winEl?.value || 30, 10);
+      if (!isNaN(wd)) ov.window_days = wd;
+      // Compare to server, only keep diffs
+      const server = DATA.scoring_config || { weights: {}, thresholds: {} };
+      const diffW = {}, diffT = {};
+      for (const [k, v] of Object.entries(ov.weights)) {
+        if ((server.weights || {})[k] !== v) diffW[k] = v;
+      }
+      for (const [k, v] of Object.entries(ov.thresholds)) {
+        if ((server.thresholds || {})[k] !== v) diffT[k] = v;
+      }
+      const final = { weights: diffW, thresholds: diffT };
+      if (ov.window_days !== (server.window_days || 30)) final.window_days = ov.window_days;
+      localStorage.setItem(_settingsLocalKey(), JSON.stringify(final));
+      renderSettings();
+      saveBtn.textContent = '✓ Saved locally';
+      setTimeout(() => saveBtn.textContent = 'Save locally', 1500);
+    });
+  }
+
+  if (exportBtn && !exportBtn._wired) {
+    exportBtn._wired = true;
+    exportBtn.addEventListener('click', () => {
+      const cfg2 = getEffectiveScoringConfig();
+      const lines = [];
+      lines.push('-- Paste into Supabase SQL editor (or update Scoring_Config sheet)');
+      lines.push("-- key, value, note, updated_at, updated_by");
+      const today = new Date().toISOString().slice(0, 10);
+      for (const [k, v] of Object.entries(cfg2.weights)) {
+        lines.push(`UPSERT scoring_config (key, value, updated_at, updated_by) VALUES ('weight.${k}', '${v}', '${today}', 'dashboard');`);
+      }
+      for (const [k, v] of Object.entries(cfg2.thresholds)) {
+        lines.push(`UPSERT scoring_config (key, value, updated_at, updated_by) VALUES ('threshold.${k}', '${v}', '${today}', 'dashboard');`);
+      }
+      lines.push(`UPSERT scoring_config (key, value, updated_at, updated_by) VALUES ('window.days', '${cfg2.window_days}', '${today}', 'dashboard');`);
+      exportOut.hidden = false;
+      exportOut.textContent = lines.join('\n');
+    });
+  }
+
+  if (resetBtn && !resetBtn._wired) {
+    resetBtn._wired = true;
+    resetBtn.addEventListener('click', () => {
+      if (!confirm('Discard all local overrides and revert to server config?')) return;
+      localStorage.removeItem(_settingsLocalKey());
+      if (exportOut) exportOut.hidden = true;
+      renderSettings();
+    });
+  }
+}
+
 // ============= TAB NAV =============
 let SELECTED_TAB = 'overview';
 function wireTabs() {
   const persisted = localStorage.getItem('dashboard:tab');
-  if (persisted && ['overview','sdr','campaigns','meetings','pipeline'].includes(persisted)) {
+  if (persisted && ['overview','sdr','campaigns','meetings','pipeline','signals','settings'].includes(persisted)) {
     SELECTED_TAB = persisted;
   }
   applyTab();

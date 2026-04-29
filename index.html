@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="dashboard.css?v=30">
+<link rel="stylesheet" href="dashboard.css?v=31">
 </head>
 <body>
 
@@ -20,6 +20,8 @@
     <button class="tab" data-tab="campaigns">Campaigns</button>
     <button class="tab" data-tab="meetings">Meetings</button>
     <button class="tab" data-tab="pipeline">Pipeline Analytics</button>
+    <button class="tab" data-tab="signals">Signals Library</button>
+    <button class="tab" data-tab="settings">Settings</button>
   </nav>
   <div class="meta">
     <button class="pill" id="author-pill" title="Click to change">…</button>
@@ -235,6 +237,53 @@
 
 </section>
 
+<!-- =================== SIGNALS LIBRARY TAB =================== -->
+<section class="tab-panel" data-panel="signals" hidden>
+  <section class="card">
+    <div class="card-head">
+      <h2>Signals Library</h2>
+      <div class="dim small">All signal types in the system · click a row to drill into specific signals tied to accounts/contacts · ⚠ = tried then dropped (high coverage but stale)</div>
+    </div>
+    <div class="signal-filter-bar">
+      <input type="text" id="sig-search" class="sig-search-input" placeholder="Filter by signal type..." />
+      <label class="sig-toggle"><input type="checkbox" id="sig-only-dropped"> Show only tried-and-dropped</label>
+      <label class="sig-toggle"><input type="checkbox" id="sig-only-zero-coverage"> Show only low coverage (&lt;5% TAM)</label>
+    </div>
+    <div id="signal-library-table"></div>
+  </section>
+</section>
+
+<!-- =================== SETTINGS TAB =================== -->
+<section class="tab-panel" data-panel="settings" hidden>
+  <section class="card">
+    <div class="card-head">
+      <h2>Scoring system</h2>
+      <div class="dim small">Tune signal weights and tier thresholds · changes save locally; click "Export" to copy a Supabase-ready config block</div>
+    </div>
+    <div class="settings-status" id="settings-status"></div>
+
+    <h3>Tier thresholds</h3>
+    <div class="settings-thresholds" id="settings-thresholds"></div>
+    <div class="dim small">An account's priority_score is the sum of weighted signal points within the lookback window. T1/T2/T3 set the score above which an account is considered Tier 1 / 2 / 3.</div>
+
+    <h3>Lookback window</h3>
+    <div class="settings-window">
+      <label>Days <input type="number" id="settings-window-days" min="1" max="365" /></label>
+    </div>
+
+    <h3>Signal weights</h3>
+    <div class="dim small" style="margin-bottom:10px;">Higher weight = stronger contribution to priority_score. Set to 0 to ignore. Currently editable for known signal types and any new types we ingest.</div>
+    <div id="settings-weights"></div>
+
+    <div class="settings-actions">
+      <button id="settings-save" class="btn-primary">Save locally</button>
+      <button id="settings-export" class="btn-secondary">Export config</button>
+      <button id="settings-reset"  class="btn-tertiary">Reset to server</button>
+    </div>
+    <pre class="settings-export-out" id="settings-export-out" hidden></pre>
+  </section>
+</section>
+
 <footer>
   <span>Refold AI GTM System · pipeline dashboard</span>
   <span class="dim">Refreshes 4×/day · 16/20/00/04 UTC</span>
@@ -242,6 +291,6 @@
 
 </main>
 
-<script src="dashboard.js?v=30"></script>
+<script src="dashboard.js?v=31"></script>
 </body>
 </html>
