@@ -445,91 +445,132 @@ function applyTab() {
 function renderSdrAction() {
   const wrap = document.getElementById('sdr-action-grid');
   if (!wrap) return;
-  const panels = DATA.campaign_panels || {};
 
-  // Pick out SDR-focused panels by name prefix
-  const sdrPanels = Object.entries(panels).filter(([name]) =>
-    name.startsWith('Tejas') || name.startsWith('Mani') || name.startsWith('Maajid')
-  );
+  // PRIMARY DATA SOURCE: strategic allocation v2 (sdr_assignment_v2)
+  const allocV2 = DATA.sdr_alloc_v2 || {};
+  const aeLocked = DATA.sdr_alloc_v2_ae_locked || [];
+  const sdrEntries = Object.entries(allocV2);
 
-  if (sdrPanels.length === 0) {
-    wrap.innerHTML = '<div class="dim small">No SDR target lists ingested yet.</div>';
+  if (sdrEntries.length === 0) {
+    wrap.innerHTML = '<div class="dim small">No SDR allocation yet — run routine_allocate_to_sdr_v2.</div>';
     return;
   }
 
-  wrap.innerHTML = sdrPanels.map(([name, p]) => {
-    const accts = p.accounts_list || [];
-    const conflicts = p.ae_conflicts || [];
-    const actionable = accts.filter(a => !a.ae_engaged);
-    const top = actionable.slice(0, 15);
+  // Cross-SDR header strip showing system-wide capacity utilization
+  const totalCap = sdrEntries.reduce((s, [_, p]) => s + (p.capacity || 0), 0);
+  const totalUsed = sdrEntries.reduce((s, [_, p]) => s + (p.used || 0), 0);
+  const headerStrip = `<div class="sdr-strategic-header">
+    <div class="ssh-title">
+      <h2>Strategic SDR Queue</h2>
+      <div class="dim small">Auto-allocated nightly · capacity-aware · AE-shielded · plays attached</div>
+    </div>
+    <div class="ssh-stats">
+      <div class="ssh-stat"><span class="ssh-big">${totalUsed} / ${totalCap}</span><span class="ssh-lbl">seats filled</span></div>
+      <div class="ssh-stat"><span class="ssh-big">${aeLocked.length}</span><span class="ssh-lbl">AE-locked (skipped)</span></div>
+    </div>
+  </div>`;
 
-    // Funnel breakdown — key stages only
-    const stages = p.by_stage || {};
-    const stageLine = ['Engaged','SDR Contacted','Opportunity','SQL']
-      .map(s => stages[s] ? `<span class="kbit"><b>${stages[s]}</b> ${s}</span>` : '')
-      .filter(Boolean).join(' · ');
+  // Per-SDR cards
+  const cards = sdrEntries.map(([sdrName, p]) => {
+    const queue = (p.queue || []).filter(x => x.status === 'active');
+    const byPlay = p.by_play || {};
+    const playPills = Object.entries(byPlay)
+      .filter(([play]) => play !== 'ae_locked')
+      .map(([play, n]) => {
+        const cls = 'play-' + play.replace(/_/g, '-');
+        return `<span class="play-pill ${cls}"><b>${n}</b> ${escapeHtml(play.replace(/_/g, ' '))}</span>`;
+      }).join('');
 
-    const rows = top.map(a => {
-      const why = whyNow(a);
-      const angle = outreachAngle(a);
-      const pt = a.past_touches || {};
-      const pb = a.playbook || {};
+    // No queue (e.g. Mani who's LinkedIn-only)
+    if (p.capacity === 0) {
+      return `<div class="sdr-action-card sdr-mode-li">
+        <div class="sdr-action-head">
+          <h3>${escapeHtml(sdrName)} <span class="sdr-mode-pill">${escapeHtml(p.modes)}</span></h3>
+          <div class="dim small">${escapeHtml(p.note || '')}</div>
+        </div>
+        <div class="dim small">No call/email queue — runs LinkedIn sequences separately.</div>
+      </div>`;
+    }
+
+    // Today's queue: show all active assignments grouped by play priority
+    const rows = queue.slice(0, 30).map(a => {
       const la = a.last_activity || {};
-      const ptCell = pt.last_date
-        ? `<div><b>${escapeHtml(pt.last_by || '?')}</b> · ${escapeHtml(pt.last_date)}` +
-          (pt.count > 1 ? ` <span class="dim">(${pt.count} total)</span>` : '') + `</div>` +
-          `<div class="dim small">${escapeHtml(pt.last_note || '')}</div>`
-        : '<span class="dim small">No past touches</span>';
-      // Last activity = any signal at all, regardless of who/what (Nooks/HS/Firefly/Leadgen)
+      const pt = a.past_touches || {};
       const laCell = la.date
         ? `<div class="mono small">${escapeHtml(la.date)} · <b>${escapeHtml(la.source || la.type)}</b></div>` +
           (la.by ? `<div class="dim small">by ${escapeHtml(la.by)}</div>` : '')
         : '<span class="dim small">—</span>';
+      const ptCell = pt.last_date
+        ? `<b>${escapeHtml(pt.last_by || '?')}</b> · ${escapeHtml(pt.last_date)}` +
+          (pt.count > 1 ? ` <span class="dim">(${pt.count})</span>` : '')
+        : '<span class="dim small">—</span>';
       const nextAction = nextActionFor(a);
-      // Playbook overrides "what to talk about" if present (Mani's hand-curated note)
-      const angleCell = pb.note
-        ? `<div class="playbook-note">${escapeHtml(pb.note)}</div>`
-        : `<span class="dim small">${escapeHtml(angle)}</span>`;
+      const playCls = 'play-' + (a.play || 'list_cold_open').replace(/_/g, '-');
       return `<tr class="acct-row" data-domain="${escapeHtml(a.domain)}">
         <td><b>${escapeHtml(a.company)}</b><div class="dim mono small">${escapeHtml(a.domain)}</div></td>
         <td>${tier_pill(a.tier)}</td>
         <td class="num"><b>${a.priority_score}</b></td>
+        <td><span class="play-pill ${playCls}" title="${escapeHtml(a.play_reason || '')}">${a.play_icon} ${escapeHtml(a.play_label || a.play)}</span></td>
         <td>${escapeHtml(a.stage || '—')}</td>
         <td class="past-cell">${ptCell}</td>
         <td class="last-act-cell">${laCell}</td>
         <td class="next-action-cell"><b>${escapeHtml(nextAction)}</b></td>
-        <td class="angle-cell">${angleCell}</td>
+        <td class="action-buttons">
+          <button class="btn-action btn-connected" data-domain="${escapeHtml(a.domain)}" data-action="connected">✓ Connected</button>
+          <button class="btn-action btn-noanswer" data-domain="${escapeHtml(a.domain)}" data-action="no_answer">No answer</button>
+          <button class="btn-action btn-snooze" data-domain="${escapeHtml(a.domain)}" data-action="snoozed">Snooze</button>
+        </td>
       </tr>`;
     }).join('');
 
+    const utilPct = p.capacity ? Math.round(p.used / p.capacity * 100) : 0;
     return `<div class="sdr-action-card">
       <div class="sdr-action-head">
-        <h3>${escapeHtml(name)}</h3>
+        <h3>${escapeHtml(sdrName)} <span class="sdr-mode-pill">${escapeHtml(p.modes || '')}</span></h3>
+        <div class="dim small">${escapeHtml(p.note || '')}</div>
         <div class="sdr-action-stats">
-          <span class="kbit"><b>${p.unique_accounts || 0}</b> accounts</span>
-          <span class="kbit ok"><b>${actionable.length}</b> actionable</span>
-          ${conflicts.length > 0 ? `<span class="kbit warn"><b>${conflicts.length}</b> 🛑 AE-engaged</span>` : ''}
+          <span class="kbit ok"><b>${p.used}/${p.capacity}</b> seats (${utilPct}%)</span>
+          <span class="kbit"><b>${queue.length}</b> active in queue</span>
         </div>
-        ${stageLine ? `<div class="sdr-action-stages">${stageLine}</div>` : ''}
+        ${playPills ? `<div class="sdr-play-strip">${playPills}</div>` : ''}
       </div>
-      ${conflicts.length > 0 ? `<details class="ae-shield-collapsible">
-        <summary>🛑 ${conflicts.length} AE-engaged — skip these</summary>
-        <ul class="ae-shield-list">
-          ${conflicts.slice(0, 12).map(c =>
-            `<li><b>${escapeHtml(c.company)}</b> · <span class="dim">${escapeHtml(c.detail)}</span></li>`
-          ).join('')}
-          ${conflicts.length > 12 ? `<li class="dim">+${conflicts.length - 12} more</li>` : ''}
-        </ul>
-      </details>` : ''}
       <table class="account-table sdr-action-table">
         <thead><tr>
-          <th>Account</th><th>Tier</th><th class="num">Score</th><th>Stage</th>
-          <th>Past touch</th><th>Last activity</th><th>Next action</th><th>What to talk about</th>
+          <th>Account</th><th>Tier</th><th class="num">Score</th><th>Play</th><th>Stage</th>
+          <th>Past touch</th><th>Last activity</th><th>Next action</th><th>Log</th>
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="8" class="dim small">No actionable accounts after AE-shield. Sync with the SDR on next list.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="9" class="dim small">No active assignments. Capacity available — load fresh accounts or wait for nightly allocator.</td></tr>'}</tbody>
       </table>
     </div>`;
   }).join('');
+
+  // AE-locked roll-up (manager view)
+  const aeBlock = aeLocked.length > 0 ? `<details class="sdr-action-card ae-shield-collapsible">
+    <summary>🛑 ${aeLocked.length} accounts AE-locked — SDRs locked out</summary>
+    <ul class="ae-shield-list">
+      ${aeLocked.slice(0, 20).map(a =>
+        `<li><b>${escapeHtml(a.company)}</b> <span class="dim">· ${escapeHtml(a.tier || '')} · score ${a.priority_score}</span><br>
+        <span class="dim small">${escapeHtml(a.play_reason || '')}</span></li>`
+      ).join('')}
+      ${aeLocked.length > 20 ? `<li class="dim">+${aeLocked.length - 20} more</li>` : ''}
+    </ul>
+  </details>` : '';
+
+  wrap.innerHTML = headerStrip + cards + aeBlock;
+
+  // Wire log buttons (placeholder — writes to console for now; needs backend endpoint)
+  wrap.querySelectorAll('.btn-action').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const dom = btn.dataset.domain;
+      const action = btn.dataset.action;
+      console.log('[SDR action]', dom, action);
+      btn.textContent = '✓ logged';
+      btn.disabled = true;
+      // TODO: POST to /log_action endpoint → writes to signals + sdr_assignment_v2.last_action
+      alert(`Logged "${action}" on ${dom}.\nBackend endpoint not yet wired — currently console-only.`);
+    });
+  });
 
   // Wire row clicks
   wrap.querySelectorAll('.acct-row').forEach(row =>

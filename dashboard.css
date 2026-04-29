@@ -1162,3 +1162,67 @@ footer {
 .ch-table th.num, .ch-table td.num { text-align: right; font-family: 'JetBrains Mono', monospace; }
 .ch-table td { padding: 8px; border-bottom: 1px solid var(--line-soft); }
 .ch-table tr:hover td { background: oklch(0.20 0.018 250 / 0.4); }
+
+/* ============= SDR strategic queue v2 ============= */
+.sdr-strategic-header {
+  display: grid; grid-template-columns: 1fr auto; gap: 16px;
+  padding: 16px 20px; margin-bottom: 16px;
+  background: oklch(0.20 0.02 250 / 0.6);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--gold);
+  border-radius: 6px; align-items: center;
+}
+.ssh-title h2 { margin: 0 0 2px; font-size: 18px; }
+.ssh-stats { display: flex; gap: 18px; }
+.ssh-stat { display: flex; flex-direction: column; align-items: flex-end; }
+.ssh-big {
+  font-family: 'Bricolage Grotesque', serif;
+  font-size: 20px; font-weight: 500; color: var(--gold);
+}
+.ssh-lbl {
+  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.sdr-mode-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; padding: 2px 8px; border-radius: 10px;
+  background: oklch(0.22 0.02 250); color: var(--ink-mute);
+  margin-left: 8px; vertical-align: middle;
+}
+.sdr-mode-li { opacity: 0.85; }
+
+.sdr-play-strip {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+}
+
+.play-pill {
+  font-family: 'Geist', sans-serif;
+  font-size: 11px; padding: 3px 8px; border-radius: 10px;
+  white-space: nowrap;
+  background: oklch(0.22 0.02 250); color: var(--ink-mute);
+}
+.play-pill b { color: var(--ink); }
+.play-pill.play-warm-lead-react   { background: oklch(0.30 0.10 25);  color: oklch(0.92 0.10 25);  }
+.play-pill.play-intent-signal     { background: oklch(0.32 0.12 75);  color: oklch(0.94 0.12 75);  }
+.play-pill.play-champion-re-engage{ background: oklch(0.28 0.08 145); color: oklch(0.88 0.10 145); }
+.play-pill.play-list-cold-open    { background: oklch(0.24 0.04 230); color: oklch(0.84 0.06 230); }
+.play-pill.play-ae-locked         { background: oklch(0.22 0.05 25);  color: oklch(0.78 0.10 25);  }
+
+.action-buttons {
+  white-space: nowrap;
+  display: flex; gap: 4px; flex-wrap: wrap;
+}
+.btn-action {
+  font-family: 'Geist', sans-serif;
+  font-size: 10px; padding: 4px 8px; border-radius: 4px;
+  border: 1px solid var(--line-soft);
+  background: oklch(0.22 0.02 250); color: var(--ink-mute);
+  cursor: pointer; transition: all 0.15s;
+}
+.btn-action:hover { color: var(--ink); border-color: var(--ink-dim); }
+.btn-action:disabled { opacity: 0.5; cursor: default; }
+.btn-connected { border-color: oklch(0.50 0.10 145); color: oklch(0.78 0.12 145); }
+.btn-connected:hover { background: oklch(0.30 0.08 145); }
+.btn-noanswer { border-color: oklch(0.46 0.08 75); }
+.btn-snooze { border-color: var(--line-soft); }
