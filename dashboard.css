@@ -1349,3 +1349,36 @@ footer {
   background: oklch(0.30 0.13 25); color: oklch(0.92 0.10 25);
   min-width: 28px; text-align: center;
 }
+
+/* ===== Pipeline Analytics drilldown ===== */
+.pa-svg rect.pa-bar-clickable {
+  cursor: pointer;
+  transition: opacity 0.15s, stroke-width 0.15s;
+}
+.pa-svg rect.pa-bar-clickable:hover {
+  opacity: 0.85;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+.pa-drill {
+  margin-top: 14px; padding: 12px;
+  background: oklch(0.20 0.018 250 / 0.5);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--gold);
+  border-radius: 4px;
+}
+.pa-drill-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; margin-bottom: 8px;
+  color: var(--ink);
+}
+.pa-drill-close {
+  margin-left: auto;
+  background: transparent; border: 1px solid var(--line-soft);
+  color: var(--ink-mute);
+  width: 24px; height: 24px; border-radius: 4px;
+  cursor: pointer; font-size: 16px; line-height: 1;
+}
+.pa-drill-close:hover { color: var(--ink); border-color: var(--ink-dim); }
+
+.ch-table tr.ch-row:hover td { background: oklch(0.22 0.025 75 / 0.3); }

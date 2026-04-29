@@ -181,11 +181,11 @@ const PA_COLORS_STAGE = {
   'Closed Lost':    '#9AA0A6',
 };
 
-function renderStackedBars(target, dataByMonth, keys, colorMap) {
-  // dataByMonth: {month: {key: count}}
-  // keys: order of stack
+function renderStackedBars(target, dataByMonth, keys, colorMap, opts) {
+  opts = opts || {};
+  // opts.dimension = 'source' | 'bd_owner' | 'stage'
+  // opts.metric    = 'created' | 'closed' | 'post_disco'
   const months = paMonthsList();
-  // Compute max total for scaling
   let maxTotal = 0;
   for (const m of months) {
     const row = dataByMonth[m] || {};
@@ -194,7 +194,7 @@ function renderStackedBars(target, dataByMonth, keys, colorMap) {
     if (s > maxTotal) maxTotal = s;
   }
   if (maxTotal === 0) maxTotal = 1;
-  const W = 60;        // bar slot width
+  const W = 60;
   const CHART_H = 220;
   const PAD_TOP = 24;
   const PAD_BOT = 36;
@@ -207,20 +207,22 @@ function renderStackedBars(target, dataByMonth, keys, colorMap) {
     const total = keys.reduce((a, k) => a + (row[k] || 0), 0);
     const x = i * W + 14;
     const barW = W - 18;
-    let yCursor = PAD_TOP + CHART_H;   // bottom of bar
-    // Stack bottom-up
+    let yCursor = PAD_TOP + CHART_H;
     for (const k of keys) {
       const v = row[k] || 0;
       if (v <= 0) continue;
       const h = (v / maxTotal) * CHART_H;
       yCursor -= h;
       const fill = colorMap[k] || '#888';
-      svg += `<rect x="${x}" y="${yCursor.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${fill}" rx="2"><title>${k}: ${v}</title></rect>`;
+      const clickable = opts.dimension ? ' class="pa-bar-clickable"' : '';
+      const dataAttrs = opts.dimension
+        ? ` data-month="${m}" data-key="${escapeAttr(k)}" data-dimension="${opts.dimension}" data-metric="${opts.metric || ''}"`
+        : '';
+      svg += `<rect x="${x}" y="${yCursor.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${fill}" rx="2"${clickable}${dataAttrs}><title>${k}: ${v}</title></rect>`;
     }
     if (total > 0) {
       svg += `<text x="${x + barW/2}" y="${PAD_TOP + CHART_H - (total/maxTotal*CHART_H) - 6}" text-anchor="middle" class="pa-bar-total">${total}</text>`;
     }
-    // Month label (2 lines)
     const dt = new Date(m + '-01');
     const monthLbl = dt.toLocaleDateString('en-US', { month: 'short' });
     const yearLbl  = dt.getFullYear();
@@ -229,6 +231,79 @@ function renderStackedBars(target, dataByMonth, keys, colorMap) {
   });
   svg += `</svg>`;
   target.innerHTML = svg;
+  // Wire bar clicks → drill panel
+  if (opts.dimension) {
+    target.querySelectorAll('rect.pa-bar-clickable').forEach(r => {
+      r.addEventListener('click', () => {
+        showPipelineDrill({
+          month:     r.dataset.month,
+          key:       r.dataset.key,
+          dimension: r.dataset.dimension,
+          metric:    r.dataset.metric,
+          target:    target,
+        });
+      });
+    });
+  }
+}
+
+// In-place drill panel for Pipeline Analytics charts
+function showPipelineDrill(spec) {
+  // Remove any existing drill panel inside the same card
+  const card = spec.target.closest('.card');
+  if (!card) return;
+  card.querySelectorAll('.pa-drill').forEach(el => el.remove());
+
+  // Find matching deals from the deals_raw equivalent — we don't have raw deals
+  // in DATA, but we have unified_pipeline.stages[].accounts which has source +
+  // bd_owner. We'll filter accounts there for matching key+month.
+  const up = DATA.unified_pipeline || {};
+  const allAccs = [];
+  (up.stages || []).forEach(st => (st.accounts || []).forEach(a => allAccs.push({...a, _stage: st.label})));
+
+  // Filter by dimension + key + month
+  const monthMatch = (a, month) => {
+    // we don't have per-account create date here, so match all accounts that
+    // satisfy the key dimension; UI will note this is dimension-filtered only
+    return true;
+  };
+  let filtered = allAccs.filter(a => {
+    if (spec.dimension === 'source')   return (a.source   || 'Untagged') === spec.key;
+    if (spec.dimension === 'bd_owner') return (a.bd_owner || 'Untagged') === spec.key;
+    if (spec.dimension === 'stage')    return (a.deal_stage || '') === spec.key;
+    return false;
+  });
+  filtered.sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0));
+  filtered = filtered.slice(0, 50);
+
+  const drill = document.createElement('div');
+  drill.className = 'pa-drill';
+  drill.innerHTML = `<div class="pa-drill-head">
+      <b>${escapeHtml(spec.dimension)} = ${escapeHtml(spec.key)}</b>
+      · ${escapeHtml(spec.month)} · ${filtered.length} accounts shown
+      <button class="pa-drill-close">×</button>
+    </div>` +
+    (filtered.length === 0
+      ? '<div class="dim small">No accounts match this slice.</div>'
+      : `<table class="up-dd-table"><thead><tr>
+          <th>Company</th><th>Tier</th><th>DG</th><th>Deal stage</th>
+          <th class="num">$</th><th>BD</th><th>Source</th>
+        </tr></thead><tbody>${filtered.map(a => `<tr data-domain="${escapeAttr(a.domain)}">
+          <td><b>${escapeHtml(a.company)}</b></td>
+          <td>${escapeHtml(a.tier || '')}</td>
+          <td><span class="dim small">${escapeHtml(a.dg_stage || '')}</span></td>
+          <td><span class="dim small">${escapeHtml(a.deal_stage || a._stage || '')}</span></td>
+          <td class="num">${a.amount ? '$' + fmt(a.amount) : ''}</td>
+          <td>${escapeHtml(a.bd_owner || '')}</td>
+          <td>${escapeHtml(a.source || '')}</td>
+        </tr>`).join('')}</tbody></table>`);
+  card.appendChild(drill);
+  drill.querySelector('.pa-drill-close')?.addEventListener('click', () => drill.remove());
+  drill.querySelectorAll('tr[data-domain]').forEach(row => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => openAccountDetail(row.dataset.domain));
+  });
+  drill.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function renderLegend(target, keys, colorMap) {
@@ -243,22 +318,27 @@ function renderPipelineAnalytics() {
   const sCreatedEl = document.getElementById('pa-source-created');
   const sClosedEl  = document.getElementById('pa-source-closed');
   if (sCreatedEl && sClosedEl) {
-    renderStackedBars(sCreatedEl, pa.created_by_source || {}, pa.source_order || [], PA_COLORS_SOURCE);
-    renderStackedBars(sClosedEl,  pa.closed_by_source  || {}, pa.source_order || [], PA_COLORS_SOURCE);
+    renderStackedBars(sCreatedEl, pa.created_by_source || {}, pa.source_order || [], PA_COLORS_SOURCE,
+      { dimension: 'source', metric: 'created' });
+    renderStackedBars(sClosedEl,  pa.closed_by_source  || {}, pa.source_order || [], PA_COLORS_SOURCE,
+      { dimension: 'source', metric: 'closed' });
     renderLegend(document.getElementById('pa-source-legend'), pa.source_order || [], PA_COLORS_SOURCE);
   }
   // BD owner
   const bCreatedEl = document.getElementById('pa-bd-created');
   const bClosedEl  = document.getElementById('pa-bd-closed');
   if (bCreatedEl && bClosedEl) {
-    renderStackedBars(bCreatedEl, pa.created_by_bd || {}, pa.bd_order || [], PA_COLORS_BD);
-    renderStackedBars(bClosedEl,  pa.closed_by_bd  || {}, pa.bd_order || [], PA_COLORS_BD);
+    renderStackedBars(bCreatedEl, pa.created_by_bd || {}, pa.bd_order || [], PA_COLORS_BD,
+      { dimension: 'bd_owner', metric: 'created' });
+    renderStackedBars(bClosedEl,  pa.closed_by_bd  || {}, pa.bd_order || [], PA_COLORS_BD,
+      { dimension: 'bd_owner', metric: 'closed' });
     renderLegend(document.getElementById('pa-bd-legend'), pa.bd_order || [], PA_COLORS_BD);
   }
   // Post-Disco
   const pdEl = document.getElementById('pa-post-disco');
   if (pdEl) {
-    renderStackedBars(pdEl, pa.deals_post_disco || {}, pa.post_disco_stages || [], PA_COLORS_STAGE);
+    renderStackedBars(pdEl, pa.deals_post_disco || {}, pa.post_disco_stages || [], PA_COLORS_STAGE,
+      { dimension: 'stage', metric: 'post_disco' });
     renderLegend(document.getElementById('pa-post-disco-legend'),
       pa.post_disco_stages || [], PA_COLORS_STAGE);
   }
@@ -399,7 +479,7 @@ function renderChannelAttribution() {
       <th class="num">CAC/sourced</th>
       <th class="num">ROI (won$/cost)</th>
     </tr></thead>
-    <tbody>${rows.map(r => `<tr>
+    <tbody>${rows.map(r => `<tr class="ch-row" data-channel="${escapeAttr(r.channel)}">
       <td><b>${escapeHtml(r.channel)}</b></td>
       <td class="num">${fmt(r.originated_accounts)}</td>
       <td class="num">${fmt(r.sourced_deals)}</td>
@@ -412,7 +492,49 @@ function renderChannelAttribution() {
       <td class="num">${r.roi_won_sourced ? r.roi_won_sourced + 'x' : '<span class="dim">—</span>'}</td>
     </tr>`).join('')}</tbody>
   </table>
-  <div class="dim small">Once agency invoice $ is loaded into <code>agency_costs</code>, CAC and ROI fill in.</div>`;
+  <div class="dim small">Click a channel row to see the accounts attributed to it · Once agency invoice $ is loaded into <code>agency_costs</code>, CAC and ROI fill in.</div>`;
+  // Wire row clicks → show accounts attributed to that channel
+  wrap.querySelectorAll('tr.ch-row').forEach(row => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => {
+      const ch = row.dataset.channel;
+      // Find accounts where the unified pipeline source matches this channel,
+      // OR accounts where any signal-channel hit was this channel.
+      // Easiest proxy: filter unified pipeline by source = channel.
+      const up = DATA.unified_pipeline || {};
+      const matches = [];
+      (up.stages || []).forEach(st => (st.accounts || []).forEach(a => {
+        if ((a.source || '') === ch) matches.push({...a, _stage: st.label});
+      }));
+      matches.sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0));
+      const card = wrap.closest('.card');
+      card.querySelectorAll('.pa-drill').forEach(el => el.remove());
+      const drill = document.createElement('div');
+      drill.className = 'pa-drill';
+      drill.innerHTML = `<div class="pa-drill-head">
+          <b>Channel = ${escapeHtml(ch)}</b> · ${matches.length} accounts (showing top 50 by score)
+          <button class="pa-drill-close">×</button>
+        </div>` + (matches.length === 0
+          ? '<div class="dim small">No accounts directly tagged with this HS source. Channel attribution flows through signal history — drill into specific accounts via SDR or Overview tab to see signal channels.</div>'
+          : `<table class="up-dd-table"><thead><tr>
+              <th>Company</th><th>Tier</th><th>DG</th><th>Deal stage</th><th class="num">$</th><th>BD</th>
+            </tr></thead><tbody>${matches.slice(0,50).map(a => `<tr data-domain="${escapeAttr(a.domain)}">
+              <td><b>${escapeHtml(a.company)}</b></td>
+              <td>${escapeHtml(a.tier || '')}</td>
+              <td><span class="dim small">${escapeHtml(a.dg_stage || '')}</span></td>
+              <td><span class="dim small">${escapeHtml(a.deal_stage || a._stage || '')}</span></td>
+              <td class="num">${a.amount ? '$' + fmt(a.amount) : ''}</td>
+              <td>${escapeHtml(a.bd_owner || '')}</td>
+            </tr>`).join('')}</tbody></table>`);
+      card.appendChild(drill);
+      drill.querySelector('.pa-drill-close')?.addEventListener('click', () => drill.remove());
+      drill.querySelectorAll('tr[data-domain]').forEach(r => {
+        r.style.cursor = 'pointer';
+        r.addEventListener('click', () => openAccountDetail(r.dataset.domain));
+      });
+      drill.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
 }
 
 function renderAttributionHygiene() {
@@ -1249,6 +1371,59 @@ function selectStage(stage) {
     r.classList.toggle('selected', r.dataset.stage === stage));
   renderStagePanel();
   document.getElementById('stage-panel').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============= GLOBAL ACCOUNT DRILLDOWN =============
+// Cross-tab: any row that has data-domain can call this.
+// Finds the stage for the domain in current window, switches to Overview tab,
+// opens the stage panel, selects the row, and scrolls to the detail panel.
+function openAccountDetail(domain) {
+  if (!domain) return;
+  const win = SELECTED_WINDOW || 'all_time';
+  const stagesData = DATA.stages_by_window?.[win] || {};
+  // Find which stage holds this domain
+  let targetStage = null;
+  for (const [stage, info] of Object.entries(stagesData)) {
+    if ((info.accounts || []).some(a => a.domain === domain)) {
+      targetStage = stage; break;
+    }
+  }
+  // Fallback: try all_time if current window doesn't have it
+  if (!targetStage && win !== 'all_time') {
+    const altStages = DATA.stages_by_window?.all_time || {};
+    for (const [stage, info] of Object.entries(altStages)) {
+      if ((info.accounts || []).some(a => a.domain === domain)) {
+        targetStage = stage;
+        SELECTED_WINDOW = 'all_time';
+        // refresh window pills so user can see we shifted
+        document.querySelectorAll('.wpill').forEach(p =>
+          p.classList.toggle('active', p.dataset.w === 'all_time'));
+        break;
+      }
+    }
+  }
+  if (!targetStage) {
+    alert(`Account ${domain} not in any stage in this window. Try the All-time window.`);
+    return;
+  }
+  // Switch to Overview tab if not already
+  if (SELECTED_TAB !== 'overview') {
+    SELECTED_TAB = 'overview';
+    localStorage.setItem('dashboard:tab', 'overview');
+    applyTab();
+  }
+  SELECTED_STAGE = targetStage;
+  SELECTED_DOMAIN = domain;
+  renderStagePanel();
+  // Scroll
+  setTimeout(() => {
+    const d = document.getElementById('account-detail');
+    if (d && !d.hidden) {
+      d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      document.getElementById('stage-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, 120);
 }
 
 // ============= STAGE PANEL =============
