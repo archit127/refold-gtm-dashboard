@@ -1283,3 +1283,69 @@ footer {
   border-bottom: 0;
   text-align: center;
 }
+
+/* ===== Attribution hygiene ===== */
+.hygiene-rules {
+  background: oklch(0.20 0.02 250 / 0.5);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 10px 14px; margin-bottom: 16px;
+}
+.hygiene-rules summary {
+  cursor: pointer; font-size: 13px; user-select: none;
+  list-style: revert;
+}
+.hygiene-rule-list { margin: 8px 0 0 18px; padding: 0; font-size: 12px; }
+.hygiene-rule-list li { margin: 4px 0; color: var(--ink-mute); }
+.hygiene-rule-list b { color: var(--ink); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+.hygiene-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px;
+}
+.hygiene-card {
+  background: var(--bg-deep);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px; padding: 14px 16px;
+}
+.hygiene-card.is-agency {
+  border-left: 3px solid oklch(0.65 0.13 75);
+}
+.hygiene-head { margin-bottom: 10px; }
+.hygiene-head h3 {
+  font-family: 'Bricolage Grotesque', serif;
+  font-size: 15px; font-weight: 500; margin: 0;
+}
+.agency-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; padding: 2px 6px; border-radius: 8px;
+  background: oklch(0.30 0.10 75); color: oklch(0.92 0.10 75);
+  margin-left: 6px; vertical-align: middle; letter-spacing: 0.05em;
+}
+.hygiene-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.hygiene-table th {
+  text-align: left; padding: 6px 8px;
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-dim); border-bottom: 1px solid var(--line-soft);
+}
+.hygiene-table th.num, .hygiene-table td.num {
+  text-align: right; font-family: 'JetBrains Mono', monospace;
+}
+.hygiene-table td { padding: 5px 8px; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
+.hygiene-table tr:last-child td { border-bottom: 0; }
+.hygiene-table b { color: var(--green); }
+
+.rej-section {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed var(--line-soft);
+}
+.rej-list { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+.rej-list li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; color: var(--ink-mute);
+}
+.rej-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: oklch(0.30 0.13 25); color: oklch(0.92 0.10 25);
+  min-width: 28px; text-align: center;
+}

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="dashboard.css?v=27">
+<link rel="stylesheet" href="dashboard.css?v=28">
 </head>
 <body>
 
@@ -216,10 +216,21 @@
     <div class="card-head">
       <h2>Channel attribution · originated → sourced → influenced</h2>
       <div class="dim small">
-        Originated = first signal on account · Sourced = touch within 60d before opp creation · Influenced = touch within 90d before close
+        Originated = first signal on account · Sourced = touch within 60d before opp creation · Influenced = touch within 90d before close · <b>Hygiene-applied</b> (cleaned)
       </div>
     </div>
     <div id="channel-attribution-table"></div>
+  </section>
+
+  <!-- Attribution Hygiene -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Attribution hygiene · what got removed and why</h2>
+      <div class="dim small">
+        Five rules strip credits where the data shows the agency wasn't actually the cause. Side-by-side: naive vs cleaned. If a row shows zero rejections, the channel was already clean.
+      </div>
+    </div>
+    <div id="attribution-hygiene"></div>
   </section>
 
 </section>
@@ -231,6 +242,6 @@
 
 </main>
 
-<script src="dashboard.js?v=27"></script>
+<script src="dashboard.js?v=28"></script>
 </body>
 </html>

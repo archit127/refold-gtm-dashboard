@@ -123,6 +123,7 @@ function renderAll() {
   renderUnifiedPipeline();
   renderPipelineAnalytics();
   renderChannelAttribution();
+  renderAttributionHygiene();
 }
 
 // ============= PIPELINE ANALYTICS =============
@@ -412,6 +413,67 @@ function renderChannelAttribution() {
     </tr>`).join('')}</tbody>
   </table>
   <div class="dim small">Once agency invoice $ is loaded into <code>agency_costs</code>, CAC and ROI fill in.</div>`;
+}
+
+function renderAttributionHygiene() {
+  const wrap = document.getElementById('attribution-hygiene');
+  if (!wrap) return;
+  const summary = DATA.channel_hygiene_summary || [];
+  const rules = DATA.attribution_hygiene_rules || [];
+  if (!summary.length) {
+    wrap.innerHTML = '<div class="dim small">No attribution hygiene rejections — all channels are clean (or no agency channels touched any deals yet).</div>';
+    return;
+  }
+
+  // Rule legend (collapsible)
+  const ruleLegend = `<details class="hygiene-rules">
+    <summary><b>How the cleaning rules work</b> · ${rules.length} rules applied to agency channels (Leadgenerator, Recotap)</summary>
+    <ul class="hygiene-rule-list">
+      ${rules.map(r => `<li><b>${escapeHtml(r.rule)}</b>: ${escapeHtml(r.description)}</li>`).join('')}
+    </ul>
+  </details>`;
+
+  // Per-channel side-by-side
+  const cards = summary.map(s => {
+    const rejList = (s.rejection_reasons || []).map(r =>
+      `<li><span class="rej-count">${r.count}</span> ${escapeHtml(r.rule)}</li>`).join('');
+    const sourcedCleanPct = s.raw_sourced_deals > 0
+      ? Math.round(s.clean_sourced_deals / s.raw_sourced_deals * 100) : 100;
+    const wonCleanPct = s.raw_won_sourced_amount > 0
+      ? Math.round(s.clean_won_sourced_amount / s.raw_won_sourced_amount * 100) : 100;
+    return `<div class="hygiene-card${s.is_agency ? ' is-agency' : ''}">
+      <div class="hygiene-head">
+        <h3>${escapeHtml(s.channel)}${s.is_agency ? ' <span class="agency-pill">AGENCY</span>' : ''}</h3>
+        <div class="dim small">${s.sourced_credits_rejected} sourcing credits rejected · $${fmt(s.sourced_amount_rejected)} stripped</div>
+      </div>
+      <table class="hygiene-table"><thead><tr>
+        <th>Metric</th><th class="num">Raw (naive)</th><th class="num">Clean</th><th class="num">% kept</th>
+      </tr></thead><tbody>
+        <tr><td>Originated accounts</td>
+          <td class="num">${fmt(s.raw_originated_accounts)}</td>
+          <td class="num"><b>${fmt(s.clean_originated_accounts)}</b></td>
+          <td class="num">${s.raw_originated_accounts > 0 ? Math.round(s.clean_originated_accounts/s.raw_originated_accounts*100)+'%' : '—'}</td></tr>
+        <tr><td>Sourced deals</td>
+          <td class="num">${fmt(s.raw_sourced_deals)}</td>
+          <td class="num"><b>${fmt(s.clean_sourced_deals)}</b></td>
+          <td class="num">${sourcedCleanPct}%</td></tr>
+        <tr><td>Sourced $</td>
+          <td class="num">${s.raw_sourced_amount > 0 ? '$'+fmt(s.raw_sourced_amount) : '—'}</td>
+          <td class="num"><b>${s.clean_sourced_amount > 0 ? '$'+fmt(s.clean_sourced_amount) : '$0'}</b></td>
+          <td class="num">${s.raw_sourced_amount > 0 ? Math.round(s.clean_sourced_amount/s.raw_sourced_amount*100)+'%' : '—'}</td></tr>
+        <tr><td>Won (sourced) $</td>
+          <td class="num">${s.raw_won_sourced_amount > 0 ? '$'+fmt(s.raw_won_sourced_amount) : '—'}</td>
+          <td class="num"><b>${s.clean_won_sourced_amount > 0 ? '$'+fmt(s.clean_won_sourced_amount) : '$0'}</b></td>
+          <td class="num">${wonCleanPct}%</td></tr>
+      </tbody></table>
+      ${rejList ? `<div class="rej-section">
+        <div class="cc-section-title">What was stripped</div>
+        <ul class="rej-list">${rejList}</ul>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  wrap.innerHTML = ruleLegend + `<div class="hygiene-grid">${cards}</div>`;
 }
 
 // ============= TAB NAV =============
