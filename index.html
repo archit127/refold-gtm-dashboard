@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="dashboard.css?v=24">
+<link rel="stylesheet" href="dashboard.css?v=25">
 </head>
 <body>
 
@@ -19,6 +19,7 @@
     <button class="tab" data-tab="sdr">SDR action</button>
     <button class="tab" data-tab="campaigns">Campaigns</button>
     <button class="tab" data-tab="meetings">Meetings</button>
+    <button class="tab" data-tab="pipeline">Pipeline Analytics</button>
   </nav>
   <div class="meta">
     <button class="pill" id="author-pill" title="Click to change">…</button>
@@ -140,6 +141,89 @@
   </section>
 </section>
 
+<!-- =================== PIPELINE ANALYTICS TAB =================== -->
+<section class="tab-panel" data-panel="pipeline" hidden>
+
+  <!-- Time-window selector -->
+  <div class="pa-window-bar">
+    <button class="pa-win active" data-pa-win="6">Last 6 months</button>
+    <button class="pa-win" data-pa-win="12">Last 12 months</button>
+    <button class="pa-win" data-pa-win="24">Last 2 years</button>
+    <button class="pa-win" data-pa-win="0">Max</button>
+    <span class="dim small" id="pa-win-meta"></span>
+  </div>
+
+  <!-- Unified early ↔ late pipeline (the headline view) -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Unified pipeline · early → late</h2>
+      <div class="dim small">Demand-gen stages (signal-driven) bridge into HubSpot deal stages. SQL/Disco is the handoff.</div>
+    </div>
+    <div id="unified-pipeline"></div>
+    <div id="handoff-leak" class="handoff-leak"></div>
+  </section>
+
+  <!-- Pipeline by Source -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Pipeline by Source</h2>
+      <div class="dim small">Created (by create date, excludes Disco) vs Closed/Won (by close date)</div>
+    </div>
+    <div class="pa-chart-row">
+      <div class="pa-chart-col">
+        <h3>Pipeline Created</h3>
+        <div id="pa-source-created" class="pa-chart"></div>
+      </div>
+      <div class="pa-chart-col">
+        <h3>Pipeline Closed/Won</h3>
+        <div id="pa-source-closed" class="pa-chart"></div>
+      </div>
+    </div>
+    <div class="pa-legend" id="pa-source-legend"></div>
+  </section>
+
+  <!-- Pipeline by BD Owner -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Pipeline by BD Owner</h2>
+      <div class="dim small">Created (by create date, excludes Disco) vs Closed/Won (by close date)</div>
+    </div>
+    <div class="pa-chart-row">
+      <div class="pa-chart-col">
+        <h3>Pipeline Created</h3>
+        <div id="pa-bd-created" class="pa-chart"></div>
+      </div>
+      <div class="pa-chart-col">
+        <h3>Pipeline Closed/Won</h3>
+        <div id="pa-bd-closed" class="pa-chart"></div>
+      </div>
+    </div>
+    <div class="pa-legend" id="pa-bd-legend"></div>
+  </section>
+
+  <!-- Deals after Disco -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Deals after Disco</h2>
+      <div class="dim small">Deals that advanced past Disco · stacked by current stage · monthly</div>
+    </div>
+    <div id="pa-post-disco" class="pa-chart pa-chart-wide"></div>
+    <div class="pa-legend" id="pa-post-disco-legend"></div>
+  </section>
+
+  <!-- Channel attribution -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Channel attribution · originated → sourced → influenced</h2>
+      <div class="dim small">
+        Originated = first signal on account · Sourced = touch within 60d before opp creation · Influenced = touch within 90d before close
+      </div>
+    </div>
+    <div id="channel-attribution-table"></div>
+  </section>
+
+</section>
+
 <footer>
   <span>Refold AI GTM System · pipeline dashboard</span>
   <span class="dim">Refreshes 4×/day · 16/20/00/04 UTC</span>
@@ -147,6 +231,6 @@
 
 </main>
 
-<script src="dashboard.js?v=24"></script>
+<script src="dashboard.js?v=25"></script>
 </body>
 </html>

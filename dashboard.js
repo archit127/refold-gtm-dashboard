@@ -100,6 +100,7 @@ async function load() {
     'Updated ' + formatTime(DATA.generated_at);
   wireWindowPills();
   wireTabs();
+  wirePipelineWindow();
   renderAll();
 }
 
@@ -118,13 +119,306 @@ function renderAll() {
   // Meetings
   renderMeetings();
   renderStalled();
+  // Pipeline Analytics
+  renderUnifiedPipeline();
+  renderPipelineAnalytics();
+  renderChannelAttribution();
+}
+
+// ============= PIPELINE ANALYTICS =============
+// Window selector
+let PA_WINDOW_MONTHS = 6;
+function wirePipelineWindow() {
+  document.querySelectorAll('.pa-win').forEach(b => {
+    b.addEventListener('click', () => {
+      PA_WINDOW_MONTHS = parseInt(b.dataset.paWin, 10);
+      document.querySelectorAll('.pa-win').forEach(x =>
+        x.classList.toggle('active', x === b));
+      renderPipelineAnalytics();
+    });
+  });
+}
+
+function paMonthsList() {
+  // Returns chronological list of YYYY-MM strings for the active window.
+  // 0 = max → last 24 months; otherwise last N months ending current.
+  const n = PA_WINDOW_MONTHS || 24;
+  const out = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    out.push(`${d.getFullYear()}-${m}`);
+  }
+  return out;
+}
+
+// Color palettes — mirror leadership chart colors as closely as reasonable
+const PA_COLORS_SOURCE = {
+  'Event':                '#4A90E2',
+  'Expansion':            '#E15554',
+  'Inbound':              '#3FB570',
+  'Outbound - Cold Call': '#F2A93B',
+  'Outbound - Email':     '#7C5BC4',
+  'Outbound - Linkedin':  '#D85B8A',
+  'Partner':              '#3DB7C0',
+  'Referral':             '#9CC551',
+  'Untagged':             '#9AA0A6',
+};
+const PA_COLORS_BD = {
+  'Archit A': '#4A90E2', 'Dave G':   '#E15554', 'Jugal A': '#3FB570',
+  'Rish N':   '#F2A93B', 'Tanmay B': '#7C5BC4', 'Tejas N': '#D85B8A',
+  'Untagged': '#9AA0A6',
+};
+const PA_COLORS_STAGE = {
+  'Demo':           '#4A90E2',
+  'POC - Planned':  '#7C5BC4',
+  'POC - Ongoing':  '#D85B8A',
+  'Verbal':         '#F2A93B',
+  'Contract':       '#3FB570',
+  'Closed Won':     '#1F8F4F',
+  'Closed Lost':    '#9AA0A6',
+};
+
+function renderStackedBars(target, dataByMonth, keys, colorMap) {
+  // dataByMonth: {month: {key: count}}
+  // keys: order of stack
+  const months = paMonthsList();
+  // Compute max total for scaling
+  let maxTotal = 0;
+  for (const m of months) {
+    const row = dataByMonth[m] || {};
+    let s = 0;
+    for (const k of keys) s += (row[k] || 0);
+    if (s > maxTotal) maxTotal = s;
+  }
+  if (maxTotal === 0) maxTotal = 1;
+  const W = 60;        // bar slot width
+  const CHART_H = 220;
+  const PAD_TOP = 24;
+  const PAD_BOT = 36;
+  const totalW = months.length * W + 20;
+  const totalH = CHART_H + PAD_TOP + PAD_BOT;
+
+  let svg = `<svg viewBox="0 0 ${totalW} ${totalH}" preserveAspectRatio="xMinYMid meet" class="pa-svg">`;
+  months.forEach((m, i) => {
+    const row = dataByMonth[m] || {};
+    const total = keys.reduce((a, k) => a + (row[k] || 0), 0);
+    const x = i * W + 14;
+    const barW = W - 18;
+    let yCursor = PAD_TOP + CHART_H;   // bottom of bar
+    // Stack bottom-up
+    for (const k of keys) {
+      const v = row[k] || 0;
+      if (v <= 0) continue;
+      const h = (v / maxTotal) * CHART_H;
+      yCursor -= h;
+      const fill = colorMap[k] || '#888';
+      svg += `<rect x="${x}" y="${yCursor.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${fill}" rx="2"><title>${k}: ${v}</title></rect>`;
+    }
+    if (total > 0) {
+      svg += `<text x="${x + barW/2}" y="${PAD_TOP + CHART_H - (total/maxTotal*CHART_H) - 6}" text-anchor="middle" class="pa-bar-total">${total}</text>`;
+    }
+    // Month label (2 lines)
+    const dt = new Date(m + '-01');
+    const monthLbl = dt.toLocaleDateString('en-US', { month: 'short' });
+    const yearLbl  = dt.getFullYear();
+    svg += `<text x="${x + barW/2}" y="${PAD_TOP + CHART_H + 16}" text-anchor="middle" class="pa-bar-mlbl">${monthLbl}</text>`;
+    svg += `<text x="${x + barW/2}" y="${PAD_TOP + CHART_H + 30}" text-anchor="middle" class="pa-bar-ylbl">${yearLbl}</text>`;
+  });
+  svg += `</svg>`;
+  target.innerHTML = svg;
+}
+
+function renderLegend(target, keys, colorMap) {
+  target.innerHTML = keys.map(k =>
+    `<span class="pa-legend-item"><span class="pa-swatch" style="background:${colorMap[k] || '#888'}"></span>${escapeHtml(k)}</span>`
+  ).join('');
+}
+
+function renderPipelineAnalytics() {
+  const pa = DATA.pipeline_analytics || {};
+  // Source
+  const sCreatedEl = document.getElementById('pa-source-created');
+  const sClosedEl  = document.getElementById('pa-source-closed');
+  if (sCreatedEl && sClosedEl) {
+    renderStackedBars(sCreatedEl, pa.created_by_source || {}, pa.source_order || [], PA_COLORS_SOURCE);
+    renderStackedBars(sClosedEl,  pa.closed_by_source  || {}, pa.source_order || [], PA_COLORS_SOURCE);
+    renderLegend(document.getElementById('pa-source-legend'), pa.source_order || [], PA_COLORS_SOURCE);
+  }
+  // BD owner
+  const bCreatedEl = document.getElementById('pa-bd-created');
+  const bClosedEl  = document.getElementById('pa-bd-closed');
+  if (bCreatedEl && bClosedEl) {
+    renderStackedBars(bCreatedEl, pa.created_by_bd || {}, pa.bd_order || [], PA_COLORS_BD);
+    renderStackedBars(bClosedEl,  pa.closed_by_bd  || {}, pa.bd_order || [], PA_COLORS_BD);
+    renderLegend(document.getElementById('pa-bd-legend'), pa.bd_order || [], PA_COLORS_BD);
+  }
+  // Post-Disco
+  const pdEl = document.getElementById('pa-post-disco');
+  if (pdEl) {
+    renderStackedBars(pdEl, pa.deals_post_disco || {}, pa.post_disco_stages || [], PA_COLORS_STAGE);
+    renderLegend(document.getElementById('pa-post-disco-legend'),
+      pa.post_disco_stages || [], PA_COLORS_STAGE);
+  }
+  const meta = document.getElementById('pa-win-meta');
+  if (meta) meta.textContent = `${pa.total_deals || 0} total deals · ${PA_WINDOW_MONTHS || 'Max'} ${PA_WINDOW_MONTHS ? 'months' : ''}`;
+}
+
+// ===== Unified pipeline (early ↔ late) =====
+const UNIFIED_PHASE_COLORS = {
+  demand_gen: '#7C5BC4',  // purple — demand-gen
+  bridge:     '#F2A93B',  // gold — handoff
+  sales:      '#4A90E2',  // blue — sales
+  won:        '#1F8F4F',  // green — won
+  lost:       '#9AA0A6',  // grey — lost
+};
+function renderUnifiedPipeline() {
+  const wrap = document.getElementById('unified-pipeline');
+  if (!wrap) return;
+  const up = DATA.unified_pipeline || {};
+  const stages = up.stages || [];
+  if (!stages.length) {
+    wrap.innerHTML = '<div class="dim small">No HS deal data yet — run routine_ingest_hs_deals.</div>';
+    return;
+  }
+  const max = Math.max(1, ...stages.map(s => s.count));
+  const totals = up.totals || {};
+  // Phase header strip (Early | Bridge | Late)
+  const phaseHeader = `
+    <div class="up-phase-header">
+      <div class="up-phase up-phase-dg">
+        <span class="up-phase-lbl">DEMAND GEN</span>
+        <span class="up-phase-count">${fmt(totals.demand_gen || 0)}</span>
+        <span class="up-phase-sub dim small">accounts</span>
+      </div>
+      <div class="up-phase-arrow">→</div>
+      <div class="up-phase up-phase-bridge">
+        <span class="up-phase-lbl">SQL / DISCO</span>
+        <span class="up-phase-count">${fmt(totals.bridge || 0)}</span>
+        <span class="up-phase-sub dim small">handoff</span>
+      </div>
+      <div class="up-phase-arrow">→</div>
+      <div class="up-phase up-phase-sales">
+        <span class="up-phase-lbl">SALES PIPELINE</span>
+        <span class="up-phase-count">${fmt(totals.sales || 0)}</span>
+        <span class="up-phase-sub dim small">$${fmt(totals.sales_amount || 0)}</span>
+      </div>
+      <div class="up-phase-arrow">→</div>
+      <div class="up-phase up-phase-won">
+        <span class="up-phase-lbl">CLOSED WON</span>
+        <span class="up-phase-count">${fmt(totals.won || 0)}</span>
+        <span class="up-phase-sub dim small">$${fmt(totals.won_amount || 0)}</span>
+      </div>
+    </div>`;
+
+  // Stage bars
+  const stageBars = stages.map(s => {
+    const pct = (s.count / max) * 100;
+    const fill = UNIFIED_PHASE_COLORS[s.phase] || '#888';
+    return `
+      <div class="up-stage-row" data-stage-key="${s.key}">
+        <span class="up-stage-lbl">${escapeHtml(s.label)}</span>
+        <span class="up-stage-bar"><span class="up-stage-fill" style="width:${pct}%; background:${fill}"></span></span>
+        <span class="up-stage-count">${fmt(s.count)}</span>
+        <span class="up-stage-amt dim small">${s.amount > 0 ? '$' + fmt(s.amount) : ''}</span>
+      </div>`;
+  }).join('');
+  wrap.innerHTML = phaseHeader + `<div class="up-bars">${stageBars}</div>` +
+    `<div class="dim small up-hint">Click any stage to see accounts at that stage</div>`;
+
+  // Wire stage click → drill in
+  wrap.querySelectorAll('.up-stage-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const key = row.dataset.stageKey;
+      const stage = stages.find(s => s.key === key);
+      if (!stage) return;
+      // Toggle drilldown
+      const existing = wrap.querySelector('.up-drilldown');
+      if (existing) existing.remove();
+      if (existing && existing.dataset.stageKey === key) return;
+      const dd = document.createElement('div');
+      dd.className = 'up-drilldown';
+      dd.dataset.stageKey = key;
+      const accs = stage.accounts || [];
+      dd.innerHTML = `<div class="up-dd-head"><b>${escapeHtml(stage.label)}</b> · ${accs.length} of ${stage.count} shown</div>` +
+        (accs.length === 0 ? '<div class="dim small">No accounts at this stage.</div>' :
+        `<table class="up-dd-table"><thead><tr><th>Company</th><th>Tier</th><th>DG</th><th>Deal</th><th class="num">$</th><th>BD</th><th>Source</th></tr></thead><tbody>` +
+        accs.map(a => `<tr data-domain="${escapeHtml(a.domain)}">
+          <td><b>${escapeHtml(a.company)}</b></td>
+          <td>${escapeHtml(a.tier || '')}</td>
+          <td><span class="dim small">${escapeHtml(a.dg_stage || '')}</span></td>
+          <td><span class="dim small">${escapeHtml(a.deal_stage || '')}</span></td>
+          <td class="num">${a.amount ? '$' + fmt(a.amount) : ''}</td>
+          <td>${escapeHtml(a.bd_owner || '')}</td>
+          <td>${escapeHtml(a.source || '')}</td>
+        </tr>`).join('') + `</tbody></table>`);
+      row.after(dd);
+    });
+  });
+
+  // Handoff leak panel
+  const leak = document.getElementById('handoff-leak');
+  if (leak) {
+    const list = up.handoff_leak || [];
+    if (!list.length) {
+      leak.innerHTML = '';
+    } else {
+      leak.innerHTML = `
+        <div class="leak-head">⚠️ <b>${list.length} accounts at SQL/Disco/Demo Done with no HubSpot deal record</b>
+          <span class="dim small"> — sales handoff missed; AE may not have logged the disco</span>
+        </div>
+        <table class="up-dd-table"><thead><tr><th>Company</th><th>Tier</th><th>DG stage</th><th class="num">Score</th></tr></thead><tbody>` +
+        list.map(a => `<tr><td><b>${escapeHtml(a.company)}</b></td><td>${escapeHtml(a.tier || '')}</td><td>${escapeHtml(a.dg_stage)}</td><td class="num">${fmt(a.priority_score)}</td></tr>`).join('') +
+        `</tbody></table>`;
+    }
+  }
+}
+
+// ===== Channel attribution table =====
+function renderChannelAttribution() {
+  const wrap = document.getElementById('channel-attribution-table');
+  if (!wrap) return;
+  const rows = DATA.channel_attribution || [];
+  const win = DATA.attribution_window_days || {};
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="dim small">No attribution data yet — needs deals + signal channel mapping.</div>';
+    return;
+  }
+  wrap.innerHTML = `<table class="ch-table">
+    <thead><tr>
+      <th>Channel</th>
+      <th class="num">Originated accts</th>
+      <th class="num">Sourced deals (${win.sourced || 60}d)</th>
+      <th class="num">Sourced $</th>
+      <th class="num">Won (sourced)</th>
+      <th class="num">Won $</th>
+      <th class="num">Influenced deals (${win.influenced || 90}d)</th>
+      <th class="num">Cost</th>
+      <th class="num">CAC/sourced</th>
+      <th class="num">ROI (won$/cost)</th>
+    </tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><b>${escapeHtml(r.channel)}</b></td>
+      <td class="num">${fmt(r.originated_accounts)}</td>
+      <td class="num">${fmt(r.sourced_deals)}</td>
+      <td class="num">${r.sourced_amount ? '$' + fmt(r.sourced_amount) : ''}</td>
+      <td class="num">${fmt(r.won_sourced_deals)}</td>
+      <td class="num">${r.won_sourced_amount ? '$' + fmt(r.won_sourced_amount) : ''}</td>
+      <td class="num">${fmt(r.influenced_deals)}</td>
+      <td class="num">${r.cost_usd ? '$' + fmt(r.cost_usd) : '<span class="dim">—</span>'}</td>
+      <td class="num">${r.cac_per_sourced_deal ? '$' + fmt(r.cac_per_sourced_deal) : '<span class="dim">—</span>'}</td>
+      <td class="num">${r.roi_won_sourced ? r.roi_won_sourced + 'x' : '<span class="dim">—</span>'}</td>
+    </tr>`).join('')}</tbody>
+  </table>
+  <div class="dim small">Once agency invoice $ is loaded into <code>agency_costs</code>, CAC and ROI fill in.</div>`;
 }
 
 // ============= TAB NAV =============
 let SELECTED_TAB = 'overview';
 function wireTabs() {
   const persisted = localStorage.getItem('dashboard:tab');
-  if (persisted && ['overview','sdr','campaigns','meetings'].includes(persisted)) {
+  if (persisted && ['overview','sdr','campaigns','meetings','pipeline'].includes(persisted)) {
     SELECTED_TAB = persisted;
   }
   applyTab();
