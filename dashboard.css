@@ -1226,3 +1226,60 @@ footer {
 .btn-connected:hover { background: oklch(0.30 0.08 145); }
 .btn-noanswer { border-color: oklch(0.46 0.08 75); }
 .btn-snooze { border-color: var(--line-soft); }
+
+/* ===== Campaign card v3 — TOFU + Outcomes split ===== */
+.cc-tofu-stats {
+  border-bottom: 0;
+  padding-bottom: 4px;
+}
+.cc-outcomes-stats {
+  border-top: 0; padding-top: 4px;
+  background: oklch(0.18 0.02 250 / 0.4);
+  border-radius: 0 0 4px 4px;
+  padding-left: 6px; padding-right: 6px;
+}
+.cc-outcomes-stats .cc-big { color: var(--green); }
+
+/* Recommendation banner */
+.cc-rec-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 4px;
+  background: oklch(0.20 0.02 250 / 0.5);
+  border-left: 3px solid var(--gold-soft);
+  font-size: 12px; line-height: 1.4;
+  margin: 4px 0;
+}
+.cc-rec-banner.rec-scale     { border-left-color: oklch(0.70 0.15 145); background: oklch(0.22 0.04 145 / 0.5); }
+.cc-rec-banner.rec-continue  { border-left-color: oklch(0.65 0.10 220); }
+.cc-rec-banner.rec-hold      { border-left-color: var(--line-soft); }
+.cc-rec-banner.rec-fix_messaging,
+.cc-rec-banner.rec-fix_targeting,
+.cc-rec-banner.rec-increase_touch { border-left-color: oklch(0.65 0.13 75); background: oklch(0.22 0.04 75 / 0.4); }
+.cc-rec-banner.rec-kill      { border-left-color: oklch(0.60 0.18 25);  background: oklch(0.22 0.06 25 / 0.45); }
+.cc-rec-reason { color: var(--ink-mute); flex: 1; }
+
+.rec-pill {
+  font-family: 'Geist', sans-serif;
+  font-size: 11px; font-weight: 500;
+  padding: 3px 9px; border-radius: 10px;
+  white-space: nowrap;
+  background: oklch(0.22 0.02 250); color: var(--ink-mute);
+}
+.rec-pill.rec-scale          { background: oklch(0.32 0.10 145); color: oklch(0.92 0.10 145); }
+.rec-pill.rec-continue       { background: oklch(0.28 0.07 220); color: oklch(0.86 0.07 220); }
+.rec-pill.rec-hold           { background: oklch(0.22 0.02 250); color: var(--ink-mute); }
+.rec-pill.rec-fix_messaging,
+.rec-pill.rec-fix_targeting,
+.rec-pill.rec-increase_touch { background: oklch(0.30 0.10 75); color: oklch(0.92 0.10 75); }
+.rec-pill.rec-kill           { background: oklch(0.30 0.13 25); color: oklch(0.92 0.10 25); }
+
+/* Sub-header row in compare table */
+.compare-table tr.sub-head th {
+  font-size: 9px; padding-top: 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-dim);
+}
+.compare-table tr:not(.sub-head) th[colspan] {
+  border-bottom: 0;
+  text-align: center;
+}

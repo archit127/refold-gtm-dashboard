@@ -558,6 +558,22 @@ function renderSdrAction() {
 
   wrap.innerHTML = headerStrip + cards + aeBlock;
 
+  // Wire row clicks → open account detail (drilldown into signals/contacts)
+  wrap.querySelectorAll('.sdr-action-card .acct-row').forEach(row => {
+    row.addEventListener('click', e => {
+      // Don't fire if user clicked an action button or other interactive child
+      if (e.target.closest('.btn-action')) return;
+      const dom = row.dataset.domain;
+      if (dom && typeof openAccountDetail === 'function') {
+        openAccountDetail(dom);
+        // Switch to overview tab where the drilldown lives
+        const overviewTab = document.querySelector('.tab[data-tab="overview"]');
+        if (overviewTab) overviewTab.click();
+      }
+    });
+    row.style.cursor = 'pointer';
+  });
+
   // Wire log buttons (placeholder — writes to console for now; needs backend endpoint)
   wrap.querySelectorAll('.btn-action').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -639,6 +655,19 @@ function outreachAngle(a) {
 }
 
 // ============= CAMPAIGN DEEP-DIVE PANELS =============
+function formatRec(rec) {
+  const map = {
+    scale:           '⬆ Scale',
+    continue:        '→ Continue',
+    hold:            '◇ Hold',
+    fix_messaging:   '✎ Fix messaging',
+    fix_targeting:   '◎ Fix targeting',
+    increase_touch:  '+ Increase touch',
+    kill:            '✕ Kill',
+  };
+  return map[rec] || rec || '—';
+}
+
 function renderCampaignPanels() {
   const grid = document.getElementById('campaign-grid');
   if (!grid) return;
@@ -654,14 +683,21 @@ function renderCampaignPanels() {
     .filter(([_, p]) => !(p.metrics || {}).is_deal_list && (p.unique_accounts || 0) >= 50)
     .map(([n, p]) => ({ name: n, m: p.metrics || {}, accts: p.unique_accounts }))
     .sort((a, b) => (b.m.mtgs_per_100 || 0) - (a.m.mtgs_per_100 || 0));
+  // Extended compare strip: include outcomes ($ pipeline, $ won) alongside TOFU
   const compareStrip = coldEntries.length >= 2 ? `
     <div class="campaign-compare card">
-      <div class="card-head"><h2>Cold-list efficiency · ranked</h2>
-        <div class="dim small">Mtgs/100 accts · last 30d · 50+ acct lists only</div></div>
+      <div class="card-head"><h2>Campaign scorecard · ranked by mtgs/100</h2>
+        <div class="dim small">Cold lists 50+ accts · TOFU efficiency + late-funnel $ outcomes (HS deals)</div></div>
       <table class="compare-table"><thead><tr>
         <th>#</th><th>Campaign</th><th class="num">Accts</th>
-        <th class="num">Mtgs/100</th><th class="num">Reply%</th>
-        <th class="num">LI accept%</th><th class="num">Engaged+%</th><th>Verdict</th>
+        <th class="num" colspan="3">TOFU · 30d</th>
+        <th class="num" colspan="3">Outcomes (HS deals)</th>
+        <th>Verdict</th><th>Recommendation</th>
+      </tr><tr class="sub-head">
+        <th></th><th></th><th></th>
+        <th class="num">Mtgs/100</th><th class="num">Reply%</th><th class="num">LI accept%</th>
+        <th class="num">Open deals</th><th class="num">Pipe $</th><th class="num">Won $</th>
+        <th></th><th></th>
       </tr></thead><tbody>
         ${coldEntries.map((e, i) => `<tr>
           <td class="rank">#${i+1}</td>
@@ -670,8 +706,11 @@ function renderCampaignPanels() {
           <td class="num"><b>${fmt(e.m.mtgs_per_100 || 0)}</b></td>
           <td class="num">${fmt(e.m.reply_rate || 0)}</td>
           <td class="num">${fmt(e.m.li_accept_rate || 0)}</td>
-          <td class="num">${fmt(e.m.engaged_pct || 0)}</td>
+          <td class="num">${fmt(e.m.pipeline_deals || 0)}</td>
+          <td class="num">${e.m.pipeline_amount > 0 ? '$'+fmt(e.m.pipeline_amount) : '<span class="dim">—</span>'}</td>
+          <td class="num">${e.m.won_amount > 0 ? '$'+fmt(e.m.won_amount) : '<span class="dim">—</span>'}</td>
           <td><span class="verdict-pill verdict-${e.m.verdict}">${escapeHtml(e.m.verdict || '')}</span></td>
+          <td><span class="rec-pill rec-${e.m.recommendation || 'hold'}">${escapeHtml(formatRec(e.m.recommendation))}</span></td>
         </tr>`).join('')}
       </tbody></table>
     </div>` : '';
@@ -770,20 +809,32 @@ function renderCampaignPanels() {
         </tr></thead><tbody>${acctRows}</tbody></table>`
       : '';
 
-    // KPI strip: differs for deal-stage vs cold lists
-    const kpiBlock = isDeal ? `
-      <div class="cc-stats">
+    // TWO KPI ROWS: TOFU (early funnel) + OUTCOMES (HS deals)
+    // Cold lists show reply%/LI accept%; deal lists show meetings/coverage.
+    const tofuRow = isDeal ? `
+      <div class="cc-stats cc-tofu-stats">
         <div class="cc-stat"><span class="cc-big">${fmt(m.meetings_30d || 0)}</span><span class="cc-lbl">meetings · 30d</span></div>
         <div class="cc-stat"><span class="cc-big">${fmt(m.mtgs_per_100 || 0)}</span><span class="cc-lbl">mtgs / 100</span></div>
         <div class="cc-stat"><span class="cc-big">${fmt(m.engaged_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">engaged+ rate</span></div>
         <div class="cc-stat"><span class="cc-big">${fmt(m.sdr_coverage_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">SDR coverage</span></div>
       </div>` : `
-      <div class="cc-stats">
+      <div class="cc-stats cc-tofu-stats">
         <div class="cc-stat"><span class="cc-big">${fmt(m.reply_rate || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">email reply<br><span class="dim">${fmt(m.email_replied_30d||0)}/${fmt(m.email_sent_30d||0)}</span></span></div>
         <div class="cc-stat"><span class="cc-big">${fmt(m.li_accept_rate || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">LI accept<br><span class="dim">${fmt(m.li_replied_30d||0)}/${fmt(m.li_sent_30d||0)}</span></span></div>
         <div class="cc-stat"><span class="cc-big">${fmt(m.mtgs_per_100 || 0)}</span><span class="cc-lbl">mtgs / 100</span></div>
         <div class="cc-stat"><span class="cc-big">${fmt(m.engaged_pct || 0)}<span class="cc-pct">%</span></span><span class="cc-lbl">engaged+ rate</span></div>
       </div>`;
+
+    // Outcomes row (HS deals) — shows business $ when present
+    const hasDeals = (m.pipeline_deals || 0) + (m.won_deals || 0) + (m.lost_deals || 0) > 0;
+    const outcomesRow = `
+      <div class="cc-stats cc-outcomes-stats">
+        <div class="cc-stat"><span class="cc-big">${fmt(m.pipeline_deals || 0)}</span><span class="cc-lbl">open deals<br><span class="dim">post-Disco</span></span></div>
+        <div class="cc-stat"><span class="cc-big">${m.pipeline_amount > 0 ? '$'+fmt(m.pipeline_amount) : '$0'}</span><span class="cc-lbl">pipeline $</span></div>
+        <div class="cc-stat"><span class="cc-big">${fmt(m.won_deals || 0)}</span><span class="cc-lbl">won deals<br><span class="dim">${fmt(m.win_rate || 0)}% win rate</span></span></div>
+        <div class="cc-stat"><span class="cc-big">${m.won_amount > 0 ? '$'+fmt(m.won_amount) : '$0'}</span><span class="cc-lbl">won $</span></div>
+      </div>`;
+    const kpiBlock = tofuRow + outcomesRow;
 
     const rankBadge = (m.rank_mtgs_per_100 && m.rank_total)
       ? `<span class="rank-badge">#${m.rank_mtgs_per_100} of ${m.rank_total}</span>`
@@ -797,6 +848,10 @@ function renderCampaignPanels() {
         </div>
       </div>
       ${m.verdict_reason ? `<div class="cc-verdict-reason dim small">${escapeHtml(m.verdict_reason)}</div>` : ''}
+      ${m.recommendation ? `<div class="cc-rec-banner rec-${m.recommendation}">
+        <span class="rec-pill rec-${m.recommendation}">${escapeHtml(formatRec(m.recommendation))}</span>
+        <span class="cc-rec-reason">${escapeHtml(m.recommendation_reason || '')}</span>
+      </div>` : ''}
       ${conflictBanner}
       ${kpiBlock}
       <div class="cc-meta dim small">
