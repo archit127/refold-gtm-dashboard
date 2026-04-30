@@ -124,8 +124,7 @@ function renderAll() {
   renderPipelineAnalytics();
   renderChannelAttribution();
   renderAttributionHygiene();
-  // Signals Library + Settings
-  renderSignalLibrary();
+  // Settings
   renderSettings();
 }
 
@@ -601,132 +600,23 @@ function renderAttributionHygiene() {
   wrap.innerHTML = ruleLegend + `<div class="hygiene-grid">${cards}</div>`;
 }
 
-// ============= SIGNALS LIBRARY =============
-let SIGLIB_FILTER = { search: '', dropped: false, lowCoverage: false };
-
-function renderSignalLibrary() {
-  const wrap = document.getElementById('signal-library-table');
-  if (!wrap) return;
-  const lib = DATA.signal_library || [];
-  if (!lib.length) {
-    wrap.innerHTML = '<div class="dim small">No signal data yet.</div>';
-    return;
-  }
-
-  // Filter bar wiring (idempotent)
-  const search = document.getElementById('sig-search');
-  const dropped = document.getElementById('sig-only-dropped');
-  const lowcov  = document.getElementById('sig-only-zero-coverage');
-  if (search && !search._wired) {
-    search._wired = true;
-    search.value = SIGLIB_FILTER.search;
-    search.addEventListener('input', () => {
-      SIGLIB_FILTER.search = search.value.toLowerCase().trim();
-      renderSignalLibrary();
-    });
-  }
-  if (dropped && !dropped._wired) {
-    dropped._wired = true;
-    dropped.checked = SIGLIB_FILTER.dropped;
-    dropped.addEventListener('change', () => {
-      SIGLIB_FILTER.dropped = dropped.checked;
-      renderSignalLibrary();
-    });
-  }
-  if (lowcov && !lowcov._wired) {
-    lowcov._wired = true;
-    lowcov.checked = SIGLIB_FILTER.lowCoverage;
-    lowcov.addEventListener('change', () => {
-      SIGLIB_FILTER.lowCoverage = lowcov.checked;
-      renderSignalLibrary();
-    });
-  }
-
-  let filtered = lib;
-  if (SIGLIB_FILTER.search) {
-    filtered = filtered.filter(s => s.type.toLowerCase().includes(SIGLIB_FILTER.search));
-  }
-  if (SIGLIB_FILTER.dropped) filtered = filtered.filter(s => s.tried_and_dropped);
-  if (SIGLIB_FILTER.lowCoverage) filtered = filtered.filter(s => s.tam_coverage_pct < 5);
-
-  const rows = filtered.map(s => `<tr class="sig-row" data-type="${escapeAttr(s.type)}">
-    <td><b>${escapeHtml(s.type)}</b>${s.tried_and_dropped ? ' <span class="sig-flag-dropped" title="Tried then dropped — high accounts but no recent activity">⚠</span>' : ''}</td>
-    <td class="num">${fmt(s.weight)}</td>
-    <td class="num">${fmt(s.count_total)}</td>
-    <td class="num">${fmt(s.count_30d)}</td>
-    <td class="num">${fmt(s.unique_accounts)}</td>
-    <td class="num">${fmt(s.unique_contacts)}</td>
-    <td class="num">${s.tam_coverage_pct}%</td>
-    <td class="dim small">${escapeHtml(s.first_seen || '—')}</td>
-    <td class="dim small">${escapeHtml(s.last_seen || '—')}</td>
-  </tr>`).join('');
-
-  wrap.innerHTML = `<table class="signal-lib-table"><thead><tr>
-    <th>Signal type</th>
-    <th class="num" title="Current weight in scoring config">Weight</th>
-    <th class="num">Total</th>
-    <th class="num">30d</th>
-    <th class="num">Accounts</th>
-    <th class="num">Contacts</th>
-    <th class="num">TAM %</th>
-    <th>First seen</th>
-    <th>Last seen</th>
-  </tr></thead><tbody>${rows}</tbody></table>
-  <div class="dim small">${filtered.length} of ${lib.length} signal types shown</div>`;
-
-  // Wire row clicks → drill panel
-  wrap.querySelectorAll('tr.sig-row').forEach(row => {
-    row.style.cursor = 'pointer';
-    row.addEventListener('click', () => {
-      const sig = lib.find(x => x.type === row.dataset.type);
-      if (!sig) return;
-      // Remove existing drill
-      wrap.querySelectorAll('.sig-drill').forEach(el => el.remove());
-      const drill = document.createElement('div');
-      drill.className = 'sig-drill';
-      const samples = sig.samples || [];
-      drill.innerHTML = `<div class="pa-drill-head">
-          <b>${escapeHtml(sig.type)}</b> · weight ${sig.weight} · ${sig.unique_accounts} accounts ·
-          ${sig.tam_coverage_pct}% TAM · last seen ${escapeHtml(sig.last_seen || '—')}
-          <button class="pa-drill-close">×</button>
-        </div>
-        ${samples.length === 0
-          ? '<div class="dim small">No sample signals captured.</div>'
-          : `<table class="up-dd-table"><thead><tr>
-              <th>Date</th><th>Company</th><th>Contact</th><th>SDR</th><th>Source</th><th>Details</th>
-            </tr></thead><tbody>${samples.map(sm => `<tr data-domain="${escapeAttr(sm.domain)}">
-              <td class="dim small">${escapeHtml(sm.date)}</td>
-              <td><b>${escapeHtml(sm.company || sm.domain)}</b></td>
-              <td class="dim small">${escapeHtml(sm.contact_email || '')}</td>
-              <td class="dim small">${escapeHtml(sm.sdr_owner || '')}</td>
-              <td class="dim small">${escapeHtml(sm.source || sm.campaign || '')}</td>
-              <td class="dim small">${escapeHtml(sm.details || '')}</td>
-            </tr>`).join('')}</tbody></table>`}`;
-      row.after(drill);
-      drill.querySelector('.pa-drill-close')?.addEventListener('click', () => drill.remove());
-      drill.querySelectorAll('tr[data-domain]').forEach(r => {
-        r.style.cursor = 'pointer';
-        r.addEventListener('click', () => openAccountDetail(r.dataset.domain));
-      });
-      drill.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    });
-  });
-}
-
-// ============= SETTINGS TAB (scoring config) =============
-function _settingsLocalKey() { return 'dashboard:scoring_overrides'; }
+// ============= SETTINGS (v2 — bucket-driven) =============
+function _settingsLocalKey() { return 'dashboard:scoring_overrides_v2'; }
 function getEffectiveScoringConfig() {
-  // Server config from DATA + local overrides
-  const server = DATA.scoring_config || { weights: {}, thresholds: {}, window_days: 30 };
+  const server = DATA.scoring_config || {};
   let overrides = {};
   try { overrides = JSON.parse(localStorage.getItem(_settingsLocalKey()) || '{}'); }
   catch (e) { overrides = {}; }
   return {
-    weights:    { ...(server.weights || {}),    ...(overrides.weights || {}) },
-    thresholds: { ...(server.thresholds || {}), ...(overrides.thresholds || {}) },
-    window_days: overrides.window_days ?? server.window_days ?? 30,
-    server_source: server.source,
-    last_loaded: server.last_loaded,
+    weights:        { ...(server.weights || {}),        ...(overrides.weights || {}) },
+    bucket_weights: { ...(server.bucket_weights || {}), ...(overrides.bucket_weights || {}) },
+    thresholds:     { ...(server.thresholds || {}),     ...(overrides.thresholds || {}) },
+    window_days:    overrides.window_days ?? server.window_days ?? 30,
+    bucket_summary: server.bucket_summary || {},
+    bucket_order:   server.bucket_order   || ['Intent','Engagement','LifeEvent','Awareness','Fit','Op'],
+    coverage_warnings: server.coverage_warnings || [],
+    server_source:  server.source,
+    last_loaded:    server.last_loaded,
   };
 }
 
@@ -737,58 +627,112 @@ function renderSettings() {
   let overrides = {};
   try { overrides = JSON.parse(localStorage.getItem(_settingsLocalKey()) || '{}'); }
   catch (e) {}
-  const overrideCount = Object.keys(overrides.weights || {}).length +
-                        Object.keys(overrides.thresholds || {}).length +
-                        (overrides.window_days != null ? 1 : 0);
+  const ovCount = Object.keys(overrides.weights        || {}).length +
+                  Object.keys(overrides.bucket_weights || {}).length +
+                  Object.keys(overrides.thresholds     || {}).length +
+                  (overrides.window_days != null ? 1 : 0);
   status.innerHTML = `<span class="dim small">Loaded from <code>${escapeHtml(cfg.server_source || 'defaults')}</code> · last sync ${escapeHtml(cfg.last_loaded || '—')}</span>` +
-    (overrideCount > 0 ? `<span class="settings-override-pill">${overrideCount} local overrides</span>` : '');
+    (ovCount > 0 ? `<span class="settings-override-pill">${ovCount} local overrides</span>` : '');
 
-  // Thresholds
+  // Bucket sliders
+  const bucketsEl = document.getElementById('settings-buckets');
+  if (bucketsEl) {
+    bucketsEl.innerHTML = cfg.bucket_order.map(b => {
+      const summary = cfg.bucket_summary[b] || {};
+      const meta = summary.meta || {};
+      const w = cfg.bucket_weights[b] ?? 0;
+      const isExcluded = (b === 'Fit' || b === 'Op');
+      return `<div class="bucket-row${isExcluded ? ' bucket-excluded' : ''}">
+        <div class="bucket-head">
+          <span class="bucket-icon">${meta.icon || '·'}</span>
+          <span class="bucket-label">${escapeHtml(meta.label || b)}</span>
+          ${isExcluded ? '<span class="bucket-locked-pill">Excluded</span>' : ''}
+        </div>
+        <div class="bucket-meta dim small">${escapeHtml(meta.why || '')} · ${summary.types || 0} signals · ${fmt(summary.unique_accounts || 0)} accts (${summary.tam_pct || 0}% TAM)</div>
+        <div class="bucket-slider-row">
+          <input type="range" class="bucket-slider" data-bucket="${b}" min="0" max="10" step="1" value="${w}" ${isExcluded ? 'disabled' : ''}/>
+          <span class="bucket-value">${w}</span>
+        </div>
+      </div>`;
+    }).join('');
+    bucketsEl.querySelectorAll('input.bucket-slider').forEach(inp => {
+      inp.addEventListener('input', () => {
+        inp.parentElement.querySelector('.bucket-value').textContent = inp.value;
+      });
+    });
+  }
+
+  // Tier thresholds
   const thresEl = document.getElementById('settings-thresholds');
-  thresEl.innerHTML = ['T1', 'T2', 'T3'].map(t => `<label class="thresh-row">
-    <span class="thresh-key">${t}</span>
-    <input type="number" data-thresh="${t}" value="${cfg.thresholds[t] ?? ''}" step="1" />
-    <span class="dim small">score ≥ this → ${t}</span>
-  </label>`).join('');
+  if (thresEl) {
+    thresEl.innerHTML = ['T1', 'T2', 'T3'].map(t => `<label class="thresh-row">
+      <span class="thresh-key">${t}</span>
+      <input type="number" data-thresh="${t}" value="${cfg.thresholds[t] ?? ''}" step="1" />
+      <span class="dim small">score ≥ this → ${t}</span>
+    </label>`).join('');
+  }
 
-  // Window
   const winEl = document.getElementById('settings-window-days');
   if (winEl) winEl.value = cfg.window_days;
 
-  // Weights — sorted by current weight desc, then by signal count from library
+  // Coverage warnings
+  const warnEl = document.getElementById('settings-warnings');
+  const warnCountEl = document.getElementById('warning-count');
+  if (warnEl) {
+    const ws = cfg.coverage_warnings || [];
+    if (warnCountEl) warnCountEl.textContent = ws.length ? `(${ws.length})` : '';
+    if (ws.length === 0) {
+      warnEl.innerHTML = '<div class="dim small">No coverage warnings — all weighted signals have data.</div>';
+    } else {
+      warnEl.innerHTML = '<ul class="warning-list">' +
+        ws.map(w => `<li class="warning-${w.severity}">
+          <span class="warning-sev">${w.severity === 'critical' ? '✕' : w.severity === 'warn' ? '⚠' : 'ℹ'}</span>
+          <code>${escapeHtml(w.type)}</code> — ${escapeHtml(w.message.replace(w.type + ' ', ''))}
+        </li>`).join('') + '</ul>';
+    }
+  }
+
+  // Advanced: per-signal weights
   const lib = DATA.signal_library || [];
   const libByType = Object.fromEntries(lib.map(x => [x.type, x]));
   const allTypes = new Set([...Object.keys(cfg.weights), ...lib.map(x => x.type)]);
   const sorted = [...allTypes].sort((a, b) => {
     const wA = cfg.weights[a] || 0, wB = cfg.weights[b] || 0;
     if (wA !== wB) return wB - wA;
-    const cA = libByType[a]?.count_total || 0, cB = libByType[b]?.count_total || 0;
-    return cB - cA;
+    return (libByType[b]?.count_total || 0) - (libByType[a]?.count_total || 0);
   });
   const weightsEl = document.getElementById('settings-weights');
-  weightsEl.innerHTML = `<table class="settings-weight-table"><thead><tr>
-    <th>Signal type</th><th class="num">Weight</th><th class="num">Count (30d)</th><th class="num">Accounts</th><th>Last seen</th>
-  </tr></thead><tbody>${sorted.map(t => {
-    const libRow = libByType[t] || {};
-    const w = cfg.weights[t] ?? 0;
-    return `<tr><td><code>${escapeHtml(t)}</code></td>
-      <td class="num"><input type="number" class="weight-input" data-type="${escapeAttr(t)}" value="${w}" min="0" max="50" step="1" /></td>
-      <td class="num">${fmt(libRow.count_30d || 0)}</td>
-      <td class="num">${fmt(libRow.unique_accounts || 0)}</td>
-      <td class="dim small">${escapeHtml(libRow.last_seen || '—')}</td></tr>`;
-  }).join('')}</tbody></table>`;
+  if (weightsEl) {
+    weightsEl.innerHTML = `<table class="settings-weight-table"><thead><tr>
+      <th>Signal type</th><th>Bucket</th><th class="num">Weight</th><th class="num">Count 30d</th><th class="num">Accts</th><th>Last</th>
+    </tr></thead><tbody>${sorted.map(t => {
+      const libRow = libByType[t] || {};
+      const w = cfg.weights[t] ?? 0;
+      const cat = libRow.category || '?';
+      const icon = libRow.category_icon || '·';
+      return `<tr><td><code>${escapeHtml(t)}</code></td>
+        <td><span class="bucket-tag">${icon} ${escapeHtml(cat)}</span></td>
+        <td class="num"><input type="number" class="weight-input" data-type="${escapeAttr(t)}" value="${w}" min="0" max="50" step="1" /></td>
+        <td class="num">${fmt(libRow.count_30d || 0)}</td>
+        <td class="num">${fmt(libRow.unique_accounts || 0)}</td>
+        <td class="dim small">${escapeHtml((libRow.last_seen || '').slice(0, 11))}</td></tr>`;
+    }).join('')}</tbody></table>`;
+  }
 
-  // Wire actions (idempotent — only first time)
-  const saveBtn = document.getElementById('settings-save');
+  // Wire actions (idempotent)
+  const saveBtn   = document.getElementById('settings-save');
   const exportBtn = document.getElementById('settings-export');
-  const resetBtn = document.getElementById('settings-reset');
+  const resetBtn  = document.getElementById('settings-reset');
   const exportOut = document.getElementById('settings-export-out');
 
   if (saveBtn && !saveBtn._wired) {
     saveBtn._wired = true;
     saveBtn.addEventListener('click', () => {
-      const ov = { weights: {}, thresholds: {} };
-      document.querySelectorAll('.weight-input').forEach(i => {
+      const ov = { weights: {}, bucket_weights: {}, thresholds: {} };
+      document.querySelectorAll('input.bucket-slider').forEach(inp => {
+        ov.bucket_weights[inp.dataset.bucket] = parseFloat(inp.value);
+      });
+      document.querySelectorAll('input.weight-input').forEach(i => {
         const v = parseFloat(i.value);
         if (!isNaN(v)) ov.weights[i.dataset.type] = v;
       });
@@ -798,16 +742,12 @@ function renderSettings() {
       });
       const wd = parseInt(winEl?.value || 30, 10);
       if (!isNaN(wd)) ov.window_days = wd;
-      // Compare to server, only keep diffs
-      const server = DATA.scoring_config || { weights: {}, thresholds: {} };
-      const diffW = {}, diffT = {};
-      for (const [k, v] of Object.entries(ov.weights)) {
-        if ((server.weights || {})[k] !== v) diffW[k] = v;
-      }
-      for (const [k, v] of Object.entries(ov.thresholds)) {
-        if ((server.thresholds || {})[k] !== v) diffT[k] = v;
-      }
-      const final = { weights: diffW, thresholds: diffT };
+      const server = DATA.scoring_config || {};
+      const diffW = {}, diffB = {}, diffT = {};
+      for (const [k, v] of Object.entries(ov.weights))        if ((server.weights        || {})[k] !== v) diffW[k] = v;
+      for (const [k, v] of Object.entries(ov.bucket_weights)) if ((server.bucket_weights || {})[k] !== v) diffB[k] = v;
+      for (const [k, v] of Object.entries(ov.thresholds))     if ((server.thresholds     || {})[k] !== v) diffT[k] = v;
+      const final = { weights: diffW, bucket_weights: diffB, thresholds: diffT };
       if (ov.window_days !== (server.window_days || 30)) final.window_days = ov.window_days;
       localStorage.setItem(_settingsLocalKey(), JSON.stringify(final));
       renderSettings();
@@ -815,31 +755,30 @@ function renderSettings() {
       setTimeout(() => saveBtn.textContent = 'Save locally', 1500);
     });
   }
-
   if (exportBtn && !exportBtn._wired) {
     exportBtn._wired = true;
     exportBtn.addEventListener('click', () => {
       const cfg2 = getEffectiveScoringConfig();
-      const lines = [];
-      lines.push('-- Paste into Supabase SQL editor (or update Scoring_Config sheet)');
-      lines.push("-- key, value, note, updated_at, updated_by");
       const today = new Date().toISOString().slice(0, 10);
+      const lines = ['-- Paste into Supabase SQL editor', '-- Generated by dashboard Settings export'];
+      for (const [k, v] of Object.entries(cfg2.bucket_weights)) {
+        lines.push(`INSERT INTO scoring_config (key, value, updated_at, updated_by) VALUES ('bucket.${k}', '${v}', '${today}', 'dashboard') ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at;`);
+      }
       for (const [k, v] of Object.entries(cfg2.weights)) {
-        lines.push(`UPSERT scoring_config (key, value, updated_at, updated_by) VALUES ('weight.${k}', '${v}', '${today}', 'dashboard');`);
+        lines.push(`INSERT INTO scoring_config (key, value, updated_at, updated_by) VALUES ('weight.${k}', '${v}', '${today}', 'dashboard') ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at;`);
       }
       for (const [k, v] of Object.entries(cfg2.thresholds)) {
-        lines.push(`UPSERT scoring_config (key, value, updated_at, updated_by) VALUES ('threshold.${k}', '${v}', '${today}', 'dashboard');`);
+        lines.push(`INSERT INTO scoring_config (key, value, updated_at, updated_by) VALUES ('threshold.${k}', '${v}', '${today}', 'dashboard') ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at;`);
       }
-      lines.push(`UPSERT scoring_config (key, value, updated_at, updated_by) VALUES ('window.days', '${cfg2.window_days}', '${today}', 'dashboard');`);
+      lines.push(`INSERT INTO scoring_config (key, value, updated_at, updated_by) VALUES ('window.days', '${cfg2.window_days}', '${today}', 'dashboard') ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at;`);
       exportOut.hidden = false;
       exportOut.textContent = lines.join('\n');
     });
   }
-
   if (resetBtn && !resetBtn._wired) {
     resetBtn._wired = true;
     resetBtn.addEventListener('click', () => {
-      if (!confirm('Discard all local overrides and revert to server config?')) return;
+      if (!confirm('Discard local overrides and revert to server config?')) return;
       localStorage.removeItem(_settingsLocalKey());
       if (exportOut) exportOut.hidden = true;
       renderSettings();
@@ -851,7 +790,7 @@ function renderSettings() {
 let SELECTED_TAB = 'overview';
 function wireTabs() {
   const persisted = localStorage.getItem('dashboard:tab');
-  if (persisted && ['overview','sdr','campaigns','meetings','pipeline','signals','settings'].includes(persisted)) {
+  if (persisted && ['overview','sdr','campaigns','meetings','pipeline','settings'].includes(persisted)) {
     SELECTED_TAB = persisted;
   }
   applyTab();
@@ -939,19 +878,21 @@ function renderSdrAction() {
         : '<span class="dim small">—</span>';
       const nextAction = nextActionFor(a);
       const playCls = 'play-' + (a.play || 'list_cold_open').replace(/_/g, '-');
+      const whyNow = renderWhyNowFor(a.domain, { compact: true });
       return `<tr class="acct-row" data-domain="${escapeHtml(a.domain)}">
-        <td><b>${escapeHtml(a.company)}</b><div class="dim mono small">${escapeHtml(a.domain)}</div></td>
-        <td>${tier_pill(a.tier)}</td>
-        <td class="num"><b>${a.priority_score}</b></td>
+        <td>
+          <b>${escapeHtml(a.company)}</b>
+          <span class="dim mono small">${escapeHtml(a.domain)}</span>
+          <div class="row-meta dim small">${tier_pill(a.tier)} · score ${a.priority_score} · ${escapeHtml(a.stage || 'no stage')}</div>
+        </td>
+        <td class="why-now-cell">${whyNow}</td>
         <td><span class="play-pill ${playCls}" title="${escapeHtml(a.play_reason || '')}">${a.play_icon} ${escapeHtml(a.play_label || a.play)}</span></td>
-        <td>${escapeHtml(a.stage || '—')}</td>
-        <td class="past-cell">${ptCell}</td>
-        <td class="last-act-cell">${laCell}</td>
+        <td class="past-cell"><div class="dim small">${ptCell}</div><div class="dim small mono">${laCell}</div></td>
         <td class="next-action-cell"><b>${escapeHtml(nextAction)}</b></td>
         <td class="action-buttons">
-          <button class="btn-action btn-connected" data-domain="${escapeHtml(a.domain)}" data-action="connected">✓ Connected</button>
-          <button class="btn-action btn-noanswer" data-domain="${escapeHtml(a.domain)}" data-action="no_answer">No answer</button>
-          <button class="btn-action btn-snooze" data-domain="${escapeHtml(a.domain)}" data-action="snoozed">Snooze</button>
+          <button class="btn-action btn-connected" data-domain="${escapeHtml(a.domain)}" data-action="connected">✓</button>
+          <button class="btn-action btn-noanswer" data-domain="${escapeHtml(a.domain)}" data-action="no_answer">∅</button>
+          <button class="btn-action btn-snooze" data-domain="${escapeHtml(a.domain)}" data-action="snoozed">⏸</button>
         </td>
       </tr>`;
     }).join('');
@@ -969,10 +910,14 @@ function renderSdrAction() {
       </div>
       <table class="account-table sdr-action-table">
         <thead><tr>
-          <th>Account</th><th>Tier</th><th class="num">Score</th><th>Play</th><th>Stage</th>
-          <th>Past touch</th><th>Last activity</th><th>Next action</th><th>Log</th>
+          <th>Account</th>
+          <th>Why now / what to say</th>
+          <th>Play</th>
+          <th>Past · last</th>
+          <th>Next action</th>
+          <th>Log</th>
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="9" class="dim small">No active assignments. Capacity available — load fresh accounts or wait for nightly allocator.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="6" class="dim small">No active assignments. Capacity available — load fresh accounts or wait for nightly allocator.</td></tr>'}</tbody>
       </table>
     </div>`;
   }).join('');
@@ -1088,6 +1033,57 @@ function outreachAngle(a) {
 }
 
 // ============= CAMPAIGN DEEP-DIVE PANELS =============
+// ============= WHY NOW (cross-tab embed helper) =============
+// Renders the "Why now" pitch context for a domain — used in SDR action rows
+// and on Account detail. Bucketed view, top contributing signals, score
+// breakdown, with pitch hints baked into each signal.
+function renderWhyNowFor(domain, opts) {
+  opts = opts || {};
+  const blob = (DATA.why_now_by_dom || {})[domain];
+  if (!blob || !blob.top_signals || blob.top_signals.length === 0) {
+    return opts.compact
+      ? `<div class="why-now-empty dim small">No active scoring signals in window</div>`
+      : `<div class="why-now-block why-now-empty">
+          <div class="dim small">No active scoring signals in window. Try expanding the lookback window in Settings.</div>
+        </div>`;
+  }
+  if (opts.compact) {
+    // SDR action row — compact form: top 1-2 signals + total pts
+    const top = blob.top_signals.slice(0, 2);
+    const lines = top.map(s =>
+      `<span class="wn-cat" title="${escapeHtml(s.pitch_hint || '')}">${s.category_icon} ${escapeHtml(s.type)} ×${s.count}</span>`
+    ).join('  ');
+    const lead = top[0];
+    const pitch = lead?.pitch_hint || '';
+    return `<div class="why-now-compact">
+      <div class="wn-line">${lines} <span class="wn-pts">${blob.total_pts}pt</span></div>
+      ${pitch ? `<div class="wn-pitch">💬 ${escapeHtml(pitch)}</div>` : ''}
+    </div>`;
+  }
+  // Full form — used on Account detail
+  const cats = (blob.by_category || []).map(c => `<div class="wn-cat-block">
+    <div class="wn-cat-head">
+      <span class="wn-cat-icon">${c.icon}</span>
+      <span class="wn-cat-label">${escapeHtml(c.label)}</span>
+      <span class="wn-cat-pts">+${c.pts}</span>
+    </div>
+    <ul class="wn-sig-list">
+      ${c.signals.map(s => `<li class="wn-sig">
+        <code class="wn-type">${escapeHtml(s.type)} ×${s.count}</code>
+        ${s.pitch_hint ? `<span class="wn-hint">${escapeHtml(s.pitch_hint)}</span>` : ''}
+        <span class="wn-meta dim small">last ${escapeHtml(s.last_date || '—')} · +${s.pts}pt</span>
+      </li>`).join('')}
+    </ul>
+  </div>`).join('');
+  return `<div class="why-now-block">
+    <div class="wn-head">
+      <span class="wn-eyebrow">WHY NOW</span>
+      <span class="wn-total">${blob.total_pts} pts in ${blob.window_days}d</span>
+    </div>
+    ${cats}
+  </div>`;
+}
+
 function formatRec(rec) {
   const map = {
     scale:           '⬆ Scale',
@@ -1319,6 +1315,14 @@ function renderCampaignPanels() {
       ${m.recommendation ? `<div class="cc-rec-banner rec-${m.recommendation}">
         <span class="rec-pill rec-${m.recommendation}">${escapeHtml(formatRec(m.recommendation))}</span>
         <span class="cc-rec-reason">${escapeHtml(m.recommendation_reason || '')}</span>
+        <div class="cc-rec-cta">
+          ${m.recommendation === 'scale' ? '<button class="cc-cta-btn cta-scale" data-rec="scale">↗ Double down</button>' : ''}
+          ${m.recommendation === 'kill' ? '<button class="cc-cta-btn cta-kill" data-rec="kill">✕ Pause spend</button>' : ''}
+          ${(m.recommendation === 'fix_messaging' || m.recommendation === 'fix_targeting') ? '<button class="cc-cta-btn cta-fix" data-rec="fix">✎ Refresh angle</button>' : ''}
+          ${m.recommendation === 'increase_touch' ? '<button class="cc-cta-btn cta-touch" data-rec="touch">+ Add SDR cycles</button>' : ''}
+          ${m.recommendation === 'continue' ? '<button class="cc-cta-btn cta-continue" data-rec="continue">→ Keep going</button>' : ''}
+          <button class="cc-cta-btn cta-secondary" data-rec="dismiss">Snooze 7d</button>
+        </div>
       </div>` : ''}
       ${conflictBanner}
       ${kpiBlock}
@@ -1347,6 +1351,25 @@ function renderCampaignPanels() {
       row.addEventListener('click', () => {
         const dom = row.dataset.domain;
         if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
+      });
+    });
+    // Wire CTA buttons on campaign cards
+    grid.querySelectorAll('.cc-cta-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const rec = btn.dataset.rec;
+        const card = btn.closest('.campaign-card');
+        const name = card?.querySelector('.cc-name')?.textContent?.trim() || 'campaign';
+        // Placeholder: store decision locally + alert. Real implementation would
+        // POST to a campaign_decisions table via Edge Function.
+        const key = `dashboard:campaign_decisions`;
+        let log = {};
+        try { log = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) {}
+        log[name] = { rec, ts: new Date().toISOString() };
+        localStorage.setItem(key, JSON.stringify(log));
+        btn.textContent = '✓ logged';
+        btn.disabled = true;
+        alert(`Campaign decision logged: ${name} → ${rec}\nBackend write-endpoint pending — currently localStorage only.`);
       });
     });
   }, 0);
@@ -1877,7 +1900,7 @@ function renderAccountDetail() {
       </div>
       <div class="ad-meta">${a.open_deals_amount > 0 ? '$' + fmt(a.open_deals_amount) + ' · ' : ''}score ${a.priority_score} · ${escapeHtml(SELECTED_STAGE)}${a.committee_score > 0 ? ` · committee ${committeeBadge(a.committee_score, a.committee_levels)}` : ''}</div>
     </div>
-    ${a.why_now ? `<div class="why-matters" style="border:none;padding:0;margin-bottom:14px;"><strong style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;">Why now:</strong> ${escapeHtml(a.why_now)}</div>` : ''}
+    ${renderWhyNowFor(a.domain, { compact: false })}
     ${a.outreach_angle ? `<div class="why-matters" style="border:none;padding:0;margin-bottom:14px;"><strong style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;">Outreach angle:</strong> ${escapeHtml(a.outreach_angle)}</div>` : ''}
 
     ${renderAttribution(a.attribution)}
