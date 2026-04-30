@@ -268,8 +268,12 @@
 
     <div class="settings-actions">
       <button id="settings-save" class="btn-primary">Save locally</button>
-      <button id="settings-export" class="btn-secondary">Export to Supabase</button>
+      <button id="settings-push"   class="btn-secondary">Push to Supabase</button>
+      <button id="settings-export" class="btn-tertiary">Export SQL</button>
       <button id="settings-reset"  class="btn-tertiary">Reset</button>
+    </div>
+    <div class="settings-push-config dim small" style="margin-top:8px;">
+      Push uses the <code>scoring_config_save</code> Edge Function. Enter your write token (saved to localStorage) the first time.
     </div>
     <pre class="settings-export-out" id="settings-export-out" hidden></pre>
   </section>

@@ -784,6 +784,50 @@ function renderSettings() {
       renderSettings();
     });
   }
+  // Push to Supabase (Edge Function)
+  const pushBtn = document.getElementById('settings-push');
+  if (pushBtn && !pushBtn._wired) {
+    pushBtn._wired = true;
+    pushBtn.addEventListener('click', async () => {
+      let token = localStorage.getItem('dashboard:supabase_write_token') || '';
+      if (!token) {
+        token = prompt('Enter the dashboard write token (will be saved locally):') || '';
+        if (!token) return;
+        localStorage.setItem('dashboard:supabase_write_token', token);
+      }
+      let overrides = {};
+      try { overrides = JSON.parse(localStorage.getItem(_settingsLocalKey()) || '{}'); } catch (e) {}
+      const SUPABASE_PROJ = 'ezgzvebkainfblczysmb';
+      const url = `https://${SUPABASE_PROJ}.functions.supabase.co/scoring_config_save`;
+      pushBtn.textContent = 'Pushing…';
+      pushBtn.disabled = true;
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, ...overrides, updated_by: 'dashboard' }),
+        });
+        const j = await resp.json();
+        if (resp.ok && j.ok) {
+          pushBtn.textContent = `✓ Pushed ${j.written}`;
+          setTimeout(() => { pushBtn.textContent = 'Push to Supabase'; pushBtn.disabled = false; }, 2000);
+          // After successful push, clear local overrides since they're now server truth
+          if (confirm(`Pushed ${j.written} rows. Clear local overrides now (so dashboard reflects server)?`)) {
+            localStorage.removeItem(_settingsLocalKey());
+            renderSettings();
+          }
+        } else {
+          pushBtn.textContent = '✕ Failed';
+          alert(`Push failed: ${JSON.stringify(j)}`);
+          setTimeout(() => { pushBtn.textContent = 'Push to Supabase'; pushBtn.disabled = false; }, 2000);
+        }
+      } catch (e) {
+        pushBtn.textContent = '✕ Network error';
+        alert(`Network error: ${e}`);
+        setTimeout(() => { pushBtn.textContent = 'Push to Supabase'; pushBtn.disabled = false; }, 2000);
+      }
+    });
+  }
 }
 
 // ============= TAB NAV =============
