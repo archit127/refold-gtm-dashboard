@@ -1463,14 +1463,6 @@ function renderCampaignPanels() {
       ${m.recommendation ? `<div class="cc-rec-banner rec-${m.recommendation}">
         <span class="rec-pill rec-${m.recommendation}">${escapeHtml(formatRec(m.recommendation))}</span>
         <span class="cc-rec-reason">${escapeHtml(m.recommendation_reason || '')}</span>
-        <div class="cc-rec-cta">
-          ${m.recommendation === 'scale' ? '<button class="cc-cta-btn cta-scale" data-rec="scale">↗ Double down</button>' : ''}
-          ${m.recommendation === 'kill' ? '<button class="cc-cta-btn cta-kill" data-rec="kill">✕ Pause spend</button>' : ''}
-          ${(m.recommendation === 'fix_messaging' || m.recommendation === 'fix_targeting') ? '<button class="cc-cta-btn cta-fix" data-rec="fix">✎ Refresh angle</button>' : ''}
-          ${m.recommendation === 'increase_touch' ? '<button class="cc-cta-btn cta-touch" data-rec="touch">+ Add SDR cycles</button>' : ''}
-          ${m.recommendation === 'continue' ? '<button class="cc-cta-btn cta-continue" data-rec="continue">→ Keep going</button>' : ''}
-          <button class="cc-cta-btn cta-secondary" data-rec="dismiss">Snooze 7d</button>
-        </div>
       </div>` : ''}
       ${conflictBanner}
       ${kpiBlock}
@@ -1499,25 +1491,6 @@ function renderCampaignPanels() {
       row.addEventListener('click', () => {
         const dom = row.dataset.domain;
         if (dom && typeof openAccountDetail === 'function') openAccountDetail(dom);
-      });
-    });
-    // Wire CTA buttons on campaign cards
-    grid.querySelectorAll('.cc-cta-btn').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const rec = btn.dataset.rec;
-        const card = btn.closest('.campaign-card');
-        const name = card?.querySelector('.cc-name')?.textContent?.trim() || 'campaign';
-        // Placeholder: store decision locally + alert. Real implementation would
-        // POST to a campaign_decisions table via Edge Function.
-        const key = `dashboard:campaign_decisions`;
-        let log = {};
-        try { log = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) {}
-        log[name] = { rec, ts: new Date().toISOString() };
-        localStorage.setItem(key, JSON.stringify(log));
-        btn.textContent = '✓ logged';
-        btn.disabled = true;
-        alert(`Campaign decision logged: ${name} → ${rec}\nBackend write-endpoint pending — currently localStorage only.`);
       });
     });
   }, 0);
