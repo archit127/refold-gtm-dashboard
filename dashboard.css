@@ -1855,3 +1855,98 @@ h3 { font-size: 13px !important; text-transform: uppercase; letter-spacing: 0.06
 .cta-continue  { color: var(--ink); border-color: var(--ink-dim); }
 .cta-secondary { color: var(--ink-dim); }
 
+
+/* ============= STRATEGIC ACCOUNTS CARD (Overview) ============= */
+.strategic-card { padding: 16px 20px; }
+.strategic-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 8px 0;
+}
+.strategic-stat {
+  display: flex; flex-direction: column;
+  padding: 12px 14px;
+  border-radius: 4px;
+  background: oklch(0.20 0.02 250 / 0.5);
+}
+.ss-big {
+  font-family: 'Geist', sans-serif; font-weight: 600;
+  font-size: 24px; color: var(--gold); letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.ss-pct { font-size: 14px; color: var(--ink-mute); }
+.ss-lbl {
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-dim); margin-top: 4px;
+}
+.ss-sub { margin-top: 4px; }
+
+/* Strategic filter chips */
+.strat-filter-bar {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 6px 0;
+}
+.strat-chip {
+  font-family: 'Geist', sans-serif;
+  font-size: 11px; padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: transparent; color: var(--ink-mute);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.strat-chip:hover { color: var(--ink); border-color: var(--ink-dim); }
+.strat-chip.active {
+  background: oklch(0.30 0.10 75); color: oklch(0.94 0.10 75);
+  border-color: oklch(0.50 0.13 75);
+}
+
+/* Strategic badges (inline next to company name) */
+.strat-badge {
+  display: inline-block;
+  font-size: 10px; padding: 0 5px;
+  border-radius: 6px; vertical-align: 1px;
+  margin-left: 4px;
+}
+.strat-priority { background: oklch(0.30 0.13 75);  color: oklch(0.94 0.10 75); }
+.strat-mc       { background: oklch(0.28 0.07 220); color: oklch(0.86 0.07 220); }
+.strat-both     { background: oklch(0.30 0.10 145); color: oklch(0.92 0.10 145); }
+
+/* ============= SDR COHORT BLOCK ============= */
+.sdr-cohort {
+  margin: 6px 0 12px;
+  padding: 10px 14px;
+  background: oklch(0.20 0.02 250 / 0.6);
+  border-radius: 6px;
+}
+.cohort-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.cohort-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+  margin-top: 6px;
+}
+.cohort-cell {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px;
+  border-right: 1px solid var(--line-soft);
+}
+.cohort-cell:last-child { border-right: 0; }
+.cc-num {
+  font-family: 'Geist', sans-serif;
+  font-size: 18px; font-weight: 600; color: var(--ink);
+}
+.cc-num.cc-good { color: oklch(0.78 0.12 145); }
+.cc-num.cc-warn { color: oklch(0.72 0.16 75); }
+.cc-num.cc-mute { color: var(--ink-mute); }
+.cc-lbl {
+  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-dim); margin-top: 2px;
+}
+
+@media (max-width: 700px) {
+  .cohort-grid { grid-template-columns: repeat(3, 1fr); }
+  .cohort-cell { border-right: 0; }
+}

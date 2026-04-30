@@ -20,7 +20,7 @@ async function sbRequest(path, opts = {}) {
 function getAuthor() {
   let a = localStorage.getItem('dashboard:author');
   if (!a) {
-    a = (prompt('Who are you? (Tejas / Maajid / Mani / Archit / Jugal / Rish / Tanmay)\nName attached to your notes so the team knows who said what.') || 'anonymous').trim();
+    a = (prompt('Who are you? (Tejas / Majid / Mani / Archit / Jugal / Rish / Tanmay)\nName attached to your notes so the team knows who said what.') || 'anonymous').trim();
     if (!a) a = 'anonymous';
     localStorage.setItem('dashboard:author', a);
   }
@@ -107,6 +107,7 @@ async function load() {
 function renderAll() {
   // Overview
   renderKPIs();
+  renderStrategicCard();
   renderMovement();
   renderFunnel();
   renderTopOpps();
@@ -126,6 +127,8 @@ function renderAll() {
   renderAttributionHygiene();
   // Settings
   renderSettings();
+  // Strategic filter chips on every tab that supports them
+  document.querySelectorAll('.strat-filter-bar').forEach(bar => renderStrategicFilterChips(bar));
 }
 
 // ============= PIPELINE ANALYTICS =============
@@ -908,8 +911,11 @@ function renderSdrAction() {
       </div>`;
     }
 
+    // Apply strategic filter (top-of-page chips)
+    const stratFn = getStrategicFilterFn();
+    const filteredQueue = queue.filter(a => stratFn(a.domain));
     // Today's queue: show all active assignments grouped by play priority
-    const rows = queue.slice(0, 30).map(a => {
+    const rows = filteredQueue.slice(0, 30).map(a => {
       const la = a.last_activity || {};
       const pt = a.past_touches || {};
       const laCell = la.date
@@ -925,7 +931,7 @@ function renderSdrAction() {
       const whyNow = renderWhyNowFor(a.domain, { compact: true });
       return `<tr class="acct-row" data-domain="${escapeHtml(a.domain)}">
         <td>
-          <b>${escapeHtml(a.company)}</b>
+          <b>${escapeHtml(a.company)}</b> ${strategicBadge(a.domain)}
           <span class="dim mono small">${escapeHtml(a.domain)}</span>
           <div class="row-meta dim small">${tier_pill(a.tier)} · score ${a.priority_score} · ${escapeHtml(a.stage || 'no stage')}</div>
         </td>
@@ -942,6 +948,22 @@ function renderSdrAction() {
     }).join('');
 
     const utilPct = p.capacity ? Math.round(p.used / p.capacity * 100) : 0;
+    // Cohort tracking — this week's commitment vs progress
+    const cohort = (DATA.this_week_focus_by_sdr || {})[sdrName];
+    const cohortBlock = cohort && cohort.committed > 0 ? `
+      <div class="sdr-cohort">
+        <div class="cohort-head">
+          <span class="cohort-eyebrow">THIS WEEK · since ${escapeHtml(cohort.week_start)}</span>
+        </div>
+        <div class="cohort-grid">
+          <div class="cohort-cell"><span class="cc-num">${fmt(cohort.committed)}</span><span class="cc-lbl">committed</span></div>
+          <div class="cohort-cell"><span class="cc-num">${fmt(cohort.touched)}</span><span class="cc-lbl">worked</span></div>
+          <div class="cohort-cell"><span class="cc-num">${fmt(cohort.connected)}</span><span class="cc-lbl">connected</span></div>
+          <div class="cohort-cell"><span class="cc-num cc-good">${fmt(cohort.booked)}</span><span class="cc-lbl">meetings</span></div>
+          <div class="cohort-cell"><span class="cc-num cc-warn">${fmt(cohort.disqualified)}</span><span class="cc-lbl">DQ'd</span></div>
+          <div class="cohort-cell"><span class="cc-num cc-mute">${fmt(cohort.in_queue)}</span><span class="cc-lbl">in queue</span></div>
+        </div>
+      </div>` : '';
     return `<div class="sdr-action-card">
       <div class="sdr-action-head">
         <h3>${escapeHtml(sdrName)} <span class="sdr-mode-pill">${escapeHtml(p.modes || '')}</span></h3>
@@ -952,6 +974,7 @@ function renderSdrAction() {
         </div>
         ${playPills ? `<div class="sdr-play-strip">${playPills}</div>` : ''}
       </div>
+      ${cohortBlock}
       <table class="account-table sdr-action-table">
         <thead><tr>
           <th>Account</th>
@@ -1077,6 +1100,87 @@ function outreachAngle(a) {
 }
 
 // ============= CAMPAIGN DEEP-DIVE PANELS =============
+// ============= STRATEGIC ACCOUNTS (Overview card) =============
+function renderStrategicCard() {
+  const card = document.getElementById('strategic-card');
+  if (!card) return;
+  const s = DATA.strategic_summary;
+  if (!s || s.total_accounts === 0) { card.hidden = true; return; }
+  card.hidden = false;
+  card.innerHTML = `
+    <div class="card-head">
+      <h2>Strategic accounts</h2>
+      <div class="dim small">Priority + Must+Core flagged accounts · combined view for leadership</div>
+    </div>
+    <div class="strategic-stats">
+      <div class="strategic-stat">
+        <span class="ss-big">${fmt(s.total_accounts)}</span>
+        <span class="ss-lbl">Strategic accounts</span>
+        <span class="ss-sub dim small">★ ${s.priority_count} Priority · ⌑ ${s.must_core_count} Must+Core</span>
+      </div>
+      <div class="strategic-stat">
+        <span class="ss-big">${fmt(s.engaged_plus)}<span class="ss-pct">/${fmt(s.total_accounts)}</span></span>
+        <span class="ss-lbl">Engaged+</span>
+        <span class="ss-sub dim small">${s.engaged_pct}% of strategic</span>
+      </div>
+      <div class="strategic-stat">
+        <span class="ss-big">${fmt(s.open_deals)}</span>
+        <span class="ss-lbl">Open deals</span>
+        <span class="ss-sub dim small">${s.pipe_amount > 0 ? '$' + fmt(s.pipe_amount) + ' pipe' : 'no $ yet'}</span>
+      </div>
+      <div class="strategic-stat">
+        <span class="ss-big">${fmt(s.won_deals)}</span>
+        <span class="ss-lbl">Won</span>
+        <span class="ss-sub dim small">${s.won_amount > 0 ? '$' + fmt(s.won_amount) + ' closed' : ''}</span>
+      </div>
+    </div>`;
+}
+
+// ============= STRATEGIC FLAG HELPERS =============
+function isPriority(domain) {
+  return (DATA.priority_domains || []).includes(domain);
+}
+function isMustCore(domain) {
+  return (DATA.must_core_domains || []).includes(domain);
+}
+function strategicBadge(domain) {
+  const p = isPriority(domain), m = isMustCore(domain);
+  if (!p && !m) return '';
+  if (p && m)   return '<span class="strat-badge strat-both" title="Priority + Must+Core">★⌑</span>';
+  if (p)        return '<span class="strat-badge strat-priority" title="Priority account">★</span>';
+  return '<span class="strat-badge strat-mc" title="Must + Core">⌑</span>';
+}
+
+// Filter pill state — applied to overview/SDR/pipeline
+let STRATEGIC_FILTER = 'all'; // 'all' | 'priority' | 'must_core' | 'any'
+function getStrategicFilterFn() {
+  if (STRATEGIC_FILTER === 'all')      return _ => true;
+  if (STRATEGIC_FILTER === 'priority') return d => isPriority(d);
+  if (STRATEGIC_FILTER === 'must_core')return d => isMustCore(d);
+  if (STRATEGIC_FILTER === 'any')      return d => isPriority(d) || isMustCore(d);
+  return _ => true;
+}
+function renderStrategicFilterChips(targetEl) {
+  if (!targetEl) return;
+  const cur = STRATEGIC_FILTER;
+  targetEl.innerHTML = `
+    <button class="strat-chip${cur==='all'?' active':''}" data-strat="all">All accounts</button>
+    <button class="strat-chip${cur==='any'?' active':''}" data-strat="any">★ Strategic only</button>
+    <button class="strat-chip${cur==='priority'?' active':''}" data-strat="priority">★ Priority</button>
+    <button class="strat-chip${cur==='must_core'?' active':''}" data-strat="must_core">⌑ Must+Core</button>`;
+  targetEl.querySelectorAll('.strat-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      STRATEGIC_FILTER = btn.dataset.strat;
+      // Re-render any panels that respect the filter
+      if (typeof renderTopOpps === 'function') renderTopOpps();
+      if (typeof renderSdrAction === 'function') renderSdrAction();
+      // Pipeline tab uses its own dimension filter — strategic chips affect the
+      // unified pipeline drilldown via filtering in renderUnifiedPipeline (TBD)
+      document.querySelectorAll('.strat-filter-bar').forEach(b => renderStrategicFilterChips(b));
+    });
+  });
+}
+
 // ============= WHY NOW (cross-tab embed helper) =============
 // Renders the "Why now" pitch context for a domain — used in SDR action rows
 // and on Account detail. Bucketed view, top contributing signals, score
@@ -1261,7 +1365,7 @@ function renderCampaignPanels() {
     // be too long to render usefully here.
     const showList = (p.accounts_list && p.accounts_list.length > 0
                       && (name.startsWith('Tejas') ||
-                          name.startsWith('Maajid') ||
+                          name.startsWith('Majid') ||
                           name.startsWith('Mani') ||
                           name === 'Priority accounts' ||
                           name === 'Must + Core' ||
@@ -2044,6 +2148,9 @@ function renderTopOpps() {
 function renderStageTopTable(elId, stage, rows, emptyMsg) {
   const target = document.getElementById(elId);
   if (!target) return;
+  // Apply strategic filter
+  const stratFn = getStrategicFilterFn();
+  rows = rows.filter(r => stratFn(r.domain));
   if (rows.length === 0) {
     target.innerHTML = `<div class="dim small" style="padding:14px 0;">${emptyMsg}</div>`;
     return;
@@ -2051,7 +2158,7 @@ function renderStageTopTable(elId, stage, rows, emptyMsg) {
   target.innerHTML = `<table class="account-table">
     <thead><tr><th>Account</th><th>Tier</th><th>Score</th><th>Committee</th><th>Last sig</th><th>Why now</th></tr></thead>
     <tbody>${rows.map(o => `<tr class="acct-row" data-domain="${escapeAttr(o.domain)}" data-stage="${escapeAttr(stage)}">
-      <td><div class="acct-name">${escapeHtml(o.company_name)}</div><div class="acct-domain">${escapeHtml(o.domain)}</div></td>
+      <td><div class="acct-name">${escapeHtml(o.company_name)} ${strategicBadge(o.domain)}</div><div class="acct-domain">${escapeHtml(o.domain)}</div></td>
       <td><span class="tier-tag ${escapeHtml((o.tier || '').replace(/[^A-Z0-9]/g,''))}">${escapeHtml(o.tier || '—')}</span></td>
       <td class="score-cell">${o.priority_score}</td>
       <td class="committee-cell" title="${escapeAttr((o.committee_levels || []).join(' · '))}">${committeeBadge(o.committee_score || 0, o.committee_levels)}</td>

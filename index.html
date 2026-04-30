@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="dashboard.css?v=32">
+<link rel="stylesheet" href="dashboard.css?v=33">
 </head>
 <body>
 
@@ -50,6 +50,11 @@
 <section class="tab-panel" data-panel="overview">
 
   <section class="kpi-strip" id="kpi-strip"></section>
+
+  <!-- Strategic accounts leadership card -->
+  <section class="card strategic-card" id="strategic-card" hidden></section>
+
+  <div class="strat-filter-bar" data-scope="overview"></div>
 
   <section class="card movement-card" id="movement-card" hidden>
     <div class="card-head"><h2 id="movement-title">Activity this window</h2></div>
@@ -107,6 +112,7 @@
 
 <!-- =================== SDR ACTION TAB =================== -->
 <section class="tab-panel" data-panel="sdr" hidden>
+  <div class="strat-filter-bar" data-scope="sdr"></div>
   <div class="sdr-intro">
     <h2>SDR action lists</h2>
     <p class="dim">Per-SDR target queue with AE-shield. <b>🛑 Skip rows</b> = AE is actively working. Focus the rest by priority.</p>
@@ -144,6 +150,8 @@
 
 <!-- =================== PIPELINE ANALYTICS TAB =================== -->
 <section class="tab-panel" data-panel="pipeline" hidden>
+
+  <div class="strat-filter-bar" data-scope="pipeline"></div>
 
   <!-- Time-window selector -->
   <div class="pa-window-bar">
@@ -286,6 +294,6 @@
 
 </main>
 
-<script src="dashboard.js?v=32"></script>
+<script src="dashboard.js?v=33"></script>
 </body>
 </html>
